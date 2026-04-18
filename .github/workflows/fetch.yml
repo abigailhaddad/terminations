@@ -139,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [build]
-    if: ${{ success() }}
+    if: ${{ needs.build.result == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
