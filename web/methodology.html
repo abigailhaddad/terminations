@@ -52,12 +52,25 @@
                 All records come from USASpending's
                 <a href="https://www.usaspending.gov/download_center/award_data_archive">Award Data Archive</a>
                 &mdash; the official bulk-download center where USASpending publishes per-agency,
-                per-fiscal-year contract ZIPs covering every prime award transaction. This
-                pipeline downloads one ZIP per toptier agency per fiscal year for the years
-                listed below.
+                per-fiscal-year contract ZIPs covering every prime award transaction.
             </p>
             <p>
-                Fiscal years pulled: <span id="metaYears">--</span>
+                Concretely, the pipeline downloads one file per toptier agency per fiscal year from:
+            </p>
+            <p>
+                <code>https://files.usaspending.gov/award_data_archive/FY{YEAR}_{AGENCY}_Contracts_Full_{DATESTAMP}.zip</code>
+            </p>
+            <p>
+                <code>{AGENCY}</code> is the three-digit CGAC toptier agency code (e.g. <code>097</code> for
+                DoD, <code>075</code> for HHS, <code>036</code> for VA &mdash; pulled from USASpending's
+                <a href="https://files.usaspending.gov/reference_data/agency_codes.csv">agency_codes.csv</a>),
+                and <code>{DATESTAMP}</code> is the most recent monthly snapshot date USASpending has
+                published (auto-detected by scraping the archive listing). Each ZIP contains one or more
+                CSV files with every prime award transaction for that agency/FY.
+            </p>
+            <p>
+                Fiscal years pulled: <span id="metaYears">--</span>. Source code and the exact fetch
+                script are on <a href="https://github.com/abigailhaddad/terminations">GitHub</a>.
             </p>
         </div>
 
@@ -135,7 +148,8 @@
 
         <footer class="site-footer">
             <p>
-                Data from <a href="https://www.usaspending.gov/">USASpending bulk archives</a>
+                Data from <a href="https://www.usaspending.gov/download_center/award_data_archive">USASpending's Award Data Archive</a>
+                &middot; Code on <a href="https://github.com/abigailhaddad/terminations">GitHub</a>
                 &middot; As of <span id="asOf">--</span>
             </p>
         </footer>
