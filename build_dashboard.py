@@ -32,7 +32,6 @@ with open(CONFIG_PATH) as _f:
     CONFIG = yaml.safe_load(_f)
 
 TERMINATION_CODES = dict(CONFIG["fetch"]["termination_codes"])   # {code: label}
-SEVERITY          = dict(CONFIG["labels"]["termination_severity"])  # {code: int}
 PRICING_LABELS    = dict(CONFIG["labels"]["pricing_types"])
 
 
@@ -81,16 +80,16 @@ def _pick_sources() -> list[Path]:
     return [cp for cp in cps if cp.stat().st_size > 0]
 
 
-def stream_and_aggregate() -> dict:
-    """One record per contract_award_unique_key. Keeps the most severe
-    termination action, and within that the latest by action_date."""
+def stream_and_aggregate() -> list[dict]:
+    """One record per termination modification. A contract can have multiple
+    termination mods (partial terminations, re-filings, etc.) and we keep
+    every one of them."""
     sources = _pick_sources()
     if not sources:
         raise FileNotFoundError("No data found -- run fetch_awards.py first.")
     print(f"Reading from {len(sources)} source(s)...")
 
-    contracts: dict[str, dict] = {}
-    fao_sums: dict[str, float] = defaultdict(float)
+    records: list[dict] = []
     total_rows = 0
     skipped_no_key = 0
 
@@ -112,33 +111,21 @@ def stream_and_aggregate() -> dict:
             if action not in TERMINATION_CODES:
                 continue
 
+            # Termination mods are nearly always negative (money being pulled
+            # back); flip the sign so "deobligated" reads as a positive dollar.
             fao = _float(row, "federal_action_obligation")
-            if fao is not None:
-                fao_sums[key] += fao  # this sums only termination-row deobligations
+            deob = round(-fao, 2) if fao is not None else None
 
-            action_date = _val(row, "action_date") or ""
-            severity = SEVERITY.get(action, 0)
-
-            existing = contracts.get(key)
-            if existing:
-                # Keep the most severe; tie-break by latest action_date.
-                if existing["_severity"] > severity:
-                    continue
-                if existing["_severity"] == severity and existing["_action_date"] > action_date:
-                    continue
-
-            contracts[key] = {
-                "_action_date": action_date,
-                "_severity":    severity,
+            records.append({
                 "key":                      key,
                 "piid":                     _val(row, "award_id_piid"),
                 "parent_piid":              _val(row, "parent_award_id_piid"),
                 "modification_number":      _val(row, "modification_number"),
                 "action_type_code":         action,
                 "action_type":              _val(row, "action_type") or TERMINATION_CODES.get(action),
-                "action_date":              action_date,
+                "action_date":              _val(row, "action_date") or "",
                 "total_obligated":          _float(row, "total_dollars_obligated"),
-                "federal_action_obligation": _float(row, "federal_action_obligation"),
+                "termination_deobligated":  deob,
                 "ceiling":                  _float(row, "potential_total_value_of_award"),
                 "pop_start":                _val(row, "period_of_performance_start_date"),
                 "pop_end":                  _val(row, "period_of_performance_current_end_date"),
@@ -161,20 +148,15 @@ def stream_and_aggregate() -> dict:
                 "set_aside":                _val(row, "type_of_set_aside") or _val(row, "type_of_set_aside_code") or "NONE",
                 "place_state":              _val(row, "primary_place_of_performance_state_code"),
                 "usaspending_link":         _val(row, "usaspending_permalink"),
-            }
+            })
 
         print(f"{file_rows:,} rows")
 
+    unique_contracts = len({r["key"] for r in records})
     print(f"  Total: {total_rows:,} termination rows, "
-          f"{skipped_no_key:,} skipped (no key), {len(contracts):,} unique contracts")
+          f"{skipped_no_key:,} skipped (no key), {len(records):,} termination mods across {unique_contracts:,} contracts")
 
-    # Attach cumulative deobligation across all this contract's termination mods.
-    # Termination mods are nearly always negative (money is being pulled back);
-    # flip the sign so "deobligated" reads as a positive dollar amount.
-    for key, c in contracts.items():
-        c["termination_deobligated"] = round(-fao_sums.get(key, 0.0), 2)
-
-    return contracts
+    return records
 
 
 def _best_description(c: dict) -> str | None:
@@ -185,18 +167,18 @@ def _best_description(c: dict) -> str | None:
     return max(cands, key=len)
 
 
-def enrich_contracts(contracts: dict) -> dict:
-    for c in contracts.values():
+def enrich_contracts(records: list) -> list:
+    for c in records:
         c["pricing_type_label"] = PRICING_LABELS.get(c.get("pricing_type") or "", c.get("pricing_label"))
         c["description"] = _best_description(c)
         c["termination_reason"] = TERMINATION_CODES.get(c.get("action_type_code") or "", c.get("action_type"))
-    return contracts
+    return records
 
 
-def build_contracts_json(contracts: dict) -> list:
-    records = []
-    for c in contracts.values():
-        records.append({
+def build_contracts_json(records: list) -> list:
+    out = []
+    for c in records:
+        out.append({
             "key":                   c["key"],
             "piid":                  c.get("piid"),
             "parent_piid":           c.get("parent_piid"),
@@ -227,8 +209,8 @@ def build_contracts_json(contracts: dict) -> list:
         })
 
     # Sort by termination_date desc (most recent first).
-    records.sort(key=lambda r: r["termination_date"] or "", reverse=True)
-    return records
+    out.sort(key=lambda r: r["termination_date"] or "", reverse=True)
+    return out
 
 
 def build_summary(records: list) -> dict:
@@ -236,6 +218,7 @@ def build_summary(records: list) -> dict:
     deob = 0.0
     contractors = set()
     agencies = set()
+    contracts = set()
     for r in records:
         by_reason[r.get("termination_reason") or "Unknown"] += 1
         if r.get("termination_deobligated"):
@@ -244,9 +227,11 @@ def build_summary(records: list) -> dict:
             contractors.add(r["contractor"])
         if r.get("department"):
             agencies.add(r["department"])
+        contracts.add(r["key"])
 
     return {
         "total_terminations":       len(records),
+        "unique_contracts":         len(contracts),
         "by_reason":                dict(by_reason),
         "total_deobligated":        round(deob),
         "unique_contractors":       len(contractors),
@@ -289,11 +274,11 @@ def main():
 
     WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    contracts = stream_and_aggregate()
-    contracts = enrich_contracts(contracts)
+    raw = stream_and_aggregate()
+    raw = enrich_contracts(raw)
 
     print("\nBuilding dashboard JSONs...")
-    records = build_contracts_json(contracts)
+    records = build_contracts_json(raw)
     print(f"  terminations.json: {len(records):,} records")
 
     summary = build_summary(records)

@@ -46,6 +46,7 @@
         .reason-other      { color: var(--color-text-muted); font-weight: 500; }
         .chart-card canvas { max-height: 220px; }
         .chart-card.chart-tall canvas { max-height: 320px; }
+        .chart-card.chart-wide canvas { max-height: 260px; }
     </style>
 </head>
 <body>
@@ -55,7 +56,7 @@
     <div class="site-container">
         <header class="site-header">
             <h1>Federal Contract Terminations</h1>
-            <p class="site-subtitle">Every federal contract terminated since FY2025 &mdash; with the reason (Default, Convenience, or Cause), deobligated amount, agency, and vendor. Sourced from USASpending bulk archives (FPDS).</p>
+            <p class="site-subtitle">Every federal contract termination modification since FY2025 &mdash; with the reason (Default, Convenience, or Cause), deobligated amount, agency, and vendor. Sourced from USASpending bulk archives.</p>
             <nav class="page-nav">
                 <a href="index.html" class="active">Dashboard</a>
                 <a href="methodology.html">Methodology</a>
@@ -93,6 +94,10 @@
         </div>
 
         <section class="charts-section">
+            <div class="chart-card chart-wide" style="margin-bottom: 1rem;">
+                <h3>Terminations by month</h3>
+                <canvas id="chartMonth"></canvas>
+            </div>
             <div class="charts-grid">
                 <div class="chart-card chart-tall">
                     <h3>Top agencies (by termination count)</h3>
@@ -133,7 +138,7 @@
         <footer class="site-footer">
             <p>
                 Data from <a href="https://www.usaspending.gov/">USASpending bulk archives</a>
-                &middot; FPDS action_type codes E (Default), F (Convenience), X (Cause)
+                &middot; action_type codes E (Default), F (Convenience), X (Cause)
                 &middot; As of <span id="asOf">--</span>
             </p>
         </footer>
@@ -235,9 +240,32 @@
         }
     }
 
-    let chartAgency = null, chartReason = null;
+    let chartAgency = null, chartReason = null, chartMonth = null;
 
     function createCharts() {
+        chartMonth = new Chart(document.getElementById('chartMonth'), {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Terminations', data: [], backgroundColor: CHART_COLORS.primary, borderWidth: 0 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: CHART_COLORS.grid },
+                        ticks: {
+                            color: CHART_COLORS.tickLabel, precision: 0,
+                            callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'K' : v,
+                        },
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: CHART_COLORS.tickLabel, autoSkip: false, maxRotation: 45, minRotation: 45, font: { size: 11 } },
+                    },
+                },
+            },
+        });
+
         chartAgency = new Chart(document.getElementById('chartAgency'), {
             type: 'bar',
             data: { labels: [], datasets: [{ label: 'Terminations', data: [], backgroundColor: CHART_COLORS.primary, borderWidth: 0 }] },
@@ -274,6 +302,19 @@
     }
 
     function updateCharts(rows) {
+        // By month (YYYY-MM)
+        const monthCounts = {};
+        for (const r of rows) {
+            const d = r.termination_date;
+            if (!d || d.length < 7) continue;
+            const ym = d.slice(0, 7);
+            monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+        }
+        const months = Object.keys(monthCounts).sort();
+        chartMonth.data.labels = months;
+        chartMonth.data.datasets[0].data = months.map(m => monthCounts[m]);
+        chartMonth.update();
+
         // Top agencies
         const agencyCounts = {};
         for (const r of rows) {

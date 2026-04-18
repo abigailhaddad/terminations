@@ -1,8 +1,8 @@
 # Federal Contract Terminations
 
-A searchable dashboard of every federal contract terminated since FY2025 — with the
-reason (Default, Convenience, or Cause), deobligated amount, agency, and vendor.
-Data from the USASpending bulk archives, which source from FPDS.
+A searchable dashboard of every federal contract termination modification since
+FY2025 — with the reason (Default, Convenience, or Cause), deobligated amount,
+agency, and vendor. Data from the USASpending bulk archives.
 
 **[View the dashboard](#)** (deploy to Vercel)
 
@@ -33,8 +33,8 @@ The first `fetch_awards.py` run takes a while (one ZIP per toptier agency per
 fiscal year, often several GB each). Re-runs are fast — finished agency/FY pairs
 are checkpointed at `data/bulk_checkpoints/` and skipped.
 
-If USASpending IP-blocks mid-run, the script stops cleanly and saves progress;
-re-run from a new IP to continue.
+If USASpending stops responding mid-run, the script saves progress and exits;
+just re-run to continue where it left off.
 
 ## Termination codes
 
@@ -57,9 +57,9 @@ Edit `config.yaml` to change fiscal years or termination codes.
 
 - Monthly schedule + manual `workflow_dispatch`
 - Checkpoints persist on Cloudflare R2 between runs (prefix `terminations/`)
-- **Self-chains on IP block**: when USASpending stops answering mid-run, the
-  fetch job kicks off a new run with `gh workflow run fetch.yml`, which lands
-  on a new runner IP and picks up where the last one left off.
+- **Self-chains on interruption**: if USASpending stops answering mid-run, the
+  fetch job kicks off a new workflow run via `gh workflow run fetch.yml`, which
+  picks up where the last one left off.
 - On `status=done`, the build job runs `build_dashboard.py` and commits the
   refreshed `web/data/*.json` back to `main` (Vercel auto-deploys).
 

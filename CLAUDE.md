@@ -1,9 +1,11 @@
 # terminations
 
-Dashboard of every federal contract terminated since FY2025, sourced from
-USASpending bulk archives (FPDS). Filters at ingestion to the three FPDS
+Dashboard of every federal contract termination modification since FY2025,
+sourced from USASpending bulk archives. Filters at ingestion to the three
 `action_type_code` values that indicate termination: `E` (Default), `F`
-(Convenience), `X` (Cause).
+(Convenience), `X` (Cause). Every termination mod becomes its own row, so
+contracts with multiple termination mods (partial terminations, rescissions,
+re-filings) appear multiple times.
 
 Forked from the `dod-contract-vehicles` repo and reuses its frontend (same
 `shared.css`, `shared.js`, Bootstrap 5 + DataTables + Chart.js stack).
@@ -19,7 +21,6 @@ Downloads transaction-level contract records from USASpending bulk archives.
   non-termination row is discarded before the checkpoint CSV is written
 - Checkpoints per agency/FY at `data/bulk_checkpoints/FY{year}_{code}.csv`
 - Resume-safe: re-running skips completed files
-- May be IP-blocked after ~50 agencies; re-run from a new IP to continue
 
 ```bash
 python3 fetch_awards.py                    # all agencies, FY from config.yaml
@@ -29,12 +30,10 @@ python3 fetch_awards.py --force-current-fy # refresh just current FY
 ```
 
 ### Step 2 -- `build_dashboard.py`
-Streams termination rows, reduces to one record per
-`contract_award_unique_key`, builds dashboard JSONs.
-- Most-severe-wins: Default/Cause (severity 2) outrank Convenience (severity 1)
-- Tie-breaker: latest `action_date`
-- `termination_deobligated` = sum of `federal_action_obligation` across all
-  termination mods for the contract
+Streams termination rows, one record per termination modification (a contract
+with N termination mods produces N records). Builds dashboard JSONs.
+- `termination_deobligated` = sign-flipped `federal_action_obligation` on the
+  termination mod itself (so it reads as a positive dollar amount)
 - Output: `web/data/{terminations.json, summary.json, filters.json, config.json}`
 
 ## Config
@@ -47,7 +46,6 @@ fetch:
   termination_codes: {E: ..., F: ..., X: ...}
 
 labels:
-  termination_severity: {X: 2, E: 2, F: 1}
   pricing_types: {J: Firm Fixed Price, ...}
 ```
 
@@ -62,7 +60,7 @@ labels:
 | `termination_reason` | Human-friendly label |
 | `termination_date` | `action_date` of the termination mod |
 | `total_obligated` | Cumulative `total_dollars_obligated` at termination |
-| `termination_deobligated` | Sum of `federal_action_obligation` across all termination mods |
+| `termination_deobligated` | Sign-flipped `federal_action_obligation` on this termination mod |
 | `ceiling` | `potential_total_value_of_award` |
 | `contractor`, `contractor_parent` | Recipient name + parent |
 | `department`, `sub_agency`, `awarding_office` | Issuing agency |
@@ -88,10 +86,10 @@ Vercel: `vercel.json` routes `/ → web/`. Commit `web/data/` after each build.
 
 ## Caveats
 
-- FPDS is contractor- and contracting-officer-reported; late modifications
-  show up only after the next bulk archive refresh.
+- Contract data is contractor- and contracting-officer-reported; late
+  modifications show up only after the next bulk archive refresh.
 - Terminations "for convenience" are not necessarily contractor-fault.
 - `total_obligated` reflects the value at termination time, not any
   subsequent adjustments.
 - Grants, loans, and non-contract awards are out of scope -- this is
-  FPDS-only.
+  procurement contracts only.

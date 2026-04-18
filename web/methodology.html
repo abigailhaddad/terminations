@@ -51,9 +51,7 @@
             <p>
                 All records come from the <a href="https://files.usaspending.gov/award_data_archive/">USASpending award data archive</a>,
                 per-agency ZIP files covering the fiscal years listed below.
-                USASpending sources its contract data from FPDS (the Federal Procurement Data System).
-                No API key is required and there is no rate limit; the only constraint is that
-                USASpending will occasionally IP-block a fast scraper after ~50 downloads.
+                No API key is required.
             </p>
             <p>
                 Fiscal years pulled: <span id="metaYears">--</span>
@@ -63,7 +61,7 @@
         <div class="doc-section">
             <h2>What is a termination?</h2>
             <p>
-                Every modification to a federal contract carries an FPDS <code>action_type_code</code>. Three of
+                Every modification to a federal contract carries an <code>action_type_code</code>. Three of
                 those codes indicate the contract was terminated:
             </p>
             <table class="meta">
@@ -96,18 +94,17 @@
         </div>
 
         <div class="doc-section">
-            <h2>Aggregation</h2>
+            <h2>One row per termination modification</h2>
             <p>
-                Contracts can have more than one termination modification (for partial terminations, or
-                when a termination is rescinded and re-filed). Each contract is reduced to one row,
-                keeping the most severe termination action; Default and Cause outrank Convenience.
-                Within the same severity, the latest action_date wins.
+                A single contract can have more than one termination modification &mdash; partial
+                terminations, rescissions, and re-filings all show up as separate mods. The dashboard
+                preserves every one of them as its own row, so a contract with multiple terminations
+                appears multiple times.
             </p>
             <p>
-                <strong>Deobligated amount</strong> is the sum of <code>federal_action_obligation</code>
-                across all termination modifications for the contract. It is typically negative because
-                termination mods pull money back off the contract; the dashboard shows it as a positive
-                dollar figure.
+                <strong>Deobligated amount</strong> is the <code>federal_action_obligation</code> on
+                the termination modification itself. Termination mods are typically negative (money
+                being pulled back off the contract); the dashboard shows it as a positive dollar figure.
             </p>
         </div>
 
@@ -115,8 +112,8 @@
             <h2>Caveats</h2>
             <ul>
                 <li>
-                    FPDS is contractor- and contracting-officer-reported. Late or missing modifications
-                    will not appear until the next bulk archive refresh.
+                    Contract data is contractor- and contracting-officer-reported. Late or missing
+                    modifications will not appear until the next bulk archive refresh.
                 </li>
                 <li>
                     A termination "for convenience" does not imply anything went wrong &mdash; it can reflect a
@@ -127,8 +124,8 @@
                     the moment of the termination modification. It may have been subsequently adjusted.
                 </li>
                 <li>
-                    Grants, loans, and other non-contract awards are excluded. This dashboard only covers
-                    FPDS procurement contracts.
+                    Grants, loans, and other non-contract awards are excluded. This dashboard only
+                    covers procurement contracts.
                 </li>
             </ul>
         </div>

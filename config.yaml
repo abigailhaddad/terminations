@@ -14,13 +14,6 @@ fetch:
     X: Terminate for Cause
 
 labels:
-  # Severity ordering used when a contract has multiple termination mods.
-  # Higher severity wins (Default/Cause > Convenience).
-  termination_severity:
-    X: 2
-    E: 2
-    F: 1
-
   # Pricing type code -> human-friendly name.
   pricing_types:
     J: Firm Fixed Price

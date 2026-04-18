@@ -7,8 +7,7 @@ termination (E = Default, F = Convenience, X = Cause). Non-termination rows
 are discarded at ingestion so the checkpoint CSVs stay tiny.
 
 Each agency/FY is checkpointed individually. Re-running skips completed files.
-Safe to interrupt and resume. USASpending occasionally IP-blocks after ~50
-agencies -- if that happens, re-run from a new IP to continue.
+Safe to interrupt and resume.
 
 Run:
     python3 fetch_awards.py                         # all agencies, FY from config.yaml
