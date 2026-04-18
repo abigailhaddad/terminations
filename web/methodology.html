@@ -143,6 +143,17 @@
                     Grants, loans, and other non-contract awards are excluded. This dashboard only
                     covers procurement contracts.
                 </li>
+                <li>
+                    <strong>Subawards are not captured.</strong> These archives contain only prime-award
+                    transactions &mdash; the contract between a federal agency and its direct vendor.
+                    Subawards (prime contractor &rarr; subcontractor) live in a separate USASpending
+                    dataset from the FFATA Subaward Reporting System (FSRS), which is prime-self-reported
+                    and delivered as monthly snapshots with no <code>action_type_code</code>. A subaward
+                    being canceled produces no direct signal in any public feed; at best you could infer
+                    it by diffing consecutive snapshots for disappearances. When a prime is terminated
+                    its downstream subs effectively end too, but that cascade is not reported as its own
+                    event.
+                </li>
             </ul>
         </div>
 
