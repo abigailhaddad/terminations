@@ -1,81 +1,65 @@
 # Federal Contract Terminations
 
-A searchable dashboard of every federal contract termination modification since
-FY2025 — with the reason (Default, Convenience, or Cause), deobligated amount,
-agency, and vendor. Data from the USASpending bulk archives.
+**Live site:** https://terminations.vercel.app
 
-**[View the dashboard](#)** (deploy to Vercel)
+Every federal contract termination modification since FY2025 — with the reason
+(Default, Convenience, or Cause), the deobligated amount, the agency that ended
+it, and the vendor. You can filter, sort, and download the table as CSV.
 
-## How it works
+## What counts as a "termination"
 
-```
-fetch_awards.py         USASpending bulk archives → data/terminations_bulk.csv
-                        (downloads all toptier-agency ZIPs for FY2025–FY2026,
-                         streams each CSV, keeps only rows where action_type_code
-                         is E / F / X — every other modification is discarded)
+Every modification to a federal contract carries an action code. Three of those
+codes mean the contract was terminated:
 
-build_dashboard.py      bulk CSV → web/data/*.json
-                        (reduces to one row per contract, keeps the most severe
-                         termination, sums deobligated amount, outputs JSONs)
-```
+| Code | Reason | What it means |
+|------|--------|---------------|
+| `F` | **Terminate for Convenience** | The government ended the contract because it was in the government's interest. No contractor fault is implied — this can reflect a change in mission, appropriations, or agency priorities. |
+| `E` | **Terminate for Default** | The contractor failed to perform. Used on commercial-items and simplified-acquisition contracts. |
+| `X` | **Terminate for Cause** | The contractor failed to perform. Used on non-commercial contracts. |
 
-## Quick start
+## What you're seeing
+
+- **One row per termination modification.** A contract can be partially
+  terminated, have a termination rescinded and re-filed, etc. Every one of
+  those modifications shows up as its own row, so a contract with multiple
+  termination mods appears multiple times.
+- **Deobligated amount** is the dollars pulled back off the contract by that
+  specific termination modification.
+- **Only prime contracts** (agency → direct vendor) are included. Subawards
+  (prime contractor → subcontractor) live in a different dataset that doesn't
+  carry termination codes and aren't covered here — see the methodology page
+  for the full caveat list.
+
+## Where the data comes from
+
+USASpending's public
+[Award Data Archive](https://www.usaspending.gov/download_center/award_data_archive) —
+one ZIP per toptier federal agency per fiscal year, republished monthly. The
+pipeline grabs those files, filters them down to rows with an `action_type_code`
+of `E`, `F`, or `X`, and writes them out for the dashboard. The methodology page
+has the exact URL pattern and a full list of caveats.
+
+## How often does this update?
+
+There's a GitHub Actions workflow that re-runs the pipeline monthly and pushes
+the refreshed data to the live site. The dashboard shows the build timestamp
+and the date of the most recent termination in the header.
+
+## Running it yourself
 
 ```bash
 pip install -r requirements.txt
-
-python3 fetch_awards.py              # FY2025 + FY2026, all toptier agencies
-python3 build_dashboard.py           # build web/data/*.json
-cd web && python3 -m http.server     # view at http://localhost:8000
+python3 fetch_awards.py              # downloads bulk archives, filters to terminations
+python3 build_dashboard.py           # builds the dashboard JSON files
+cd web && python3 -m http.server     # view locally at http://localhost:8000
 ```
 
-The first `fetch_awards.py` run takes a while (one ZIP per toptier agency per
-fiscal year, often several GB each). Re-runs are fast — finished agency/FY pairs
-are checkpointed at `data/bulk_checkpoints/` and skipped.
+Fiscal years and termination codes are in `config.yaml`.
 
-If USASpending stops responding mid-run, the script saves progress and exits;
-just re-run to continue where it left off.
+## Credits
 
-## Termination codes
-
-| Code | Reason                     | Meaning |
-|------|----------------------------|---------|
-| `F`  | Terminate for Convenience  | Government ended the contract because it was in the government's interest. No contractor fault. |
-| `E`  | Terminate for Default      | Contractor failed to perform. (Commercial-items / simplified acquisition.) |
-| `X`  | Terminate for Cause        | Contractor failed to perform. (Non-commercial.) |
-
-When a contract has multiple termination mods, the most severe wins (Default /
-Cause > Convenience).
-
-## Config
-
-Edit `config.yaml` to change fiscal years or termination codes.
-
-## CI/CD
-
-`.github/workflows/fetch.yml` mirrors the `dod-contract-vehicles` pattern:
-
-- Monthly schedule + manual `workflow_dispatch`
-- Checkpoints persist on Cloudflare R2 between runs (prefix `terminations/`)
-- **Self-chains on interruption**: if USASpending stops answering mid-run, the
-  fetch job kicks off a new workflow run via `gh workflow run fetch.yml`, which
-  picks up where the last one left off.
-- On `status=done`, the build job runs `build_dashboard.py` and commits the
-  refreshed `web/data/*.json` back to `main` (Vercel auto-deploys).
-
-Required secrets (same ones you already have for DoD):
-`CF_R2_ACCOUNT_ID`, `CF_R2_BUCKET`, `CF_R2_ACCESS_KEY_ID`, `CF_R2_SECRET_ACCESS_KEY`.
-
-## Files
-
-```
-fetch_awards.py        -- USASpending bulk download, termination filter
-build_dashboard.py     -- Aggregate + build web/data/*.json
-config.yaml            -- Fiscal years + termination-code labels
-web/index.html         -- Dashboard (DataTables + Chart.js)
-web/methodology.html   -- Methodology page
-web/shared/            -- Filter manager, CSS (copied from dod-contract-vehicles)
-web/data/*.json        -- Dashboard data (committed for Vercel)
-data/                  -- Raw data (gitignored)
-vercel.json            -- Routes / → web/
-```
+- Data: [USASpending.gov](https://www.usaspending.gov/)
+- Code: https://github.com/abigailhaddad/terminations
+- Frontend structure adapted from the
+  [dod-contract-vehicles](https://github.com/abigailhaddad/dod-contract-vehicles)
+  dashboard.
