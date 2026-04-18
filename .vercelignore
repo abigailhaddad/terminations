@@ -1,0 +1,9 @@
+# Vercel only needs the static site (web/) and vercel.json.
+# Everything else is the Python pipeline, which runs in GitHub Actions.
+*.py
+requirements.txt
+config.yaml
+data/
+.github/
+CLAUDE.md
+README.md

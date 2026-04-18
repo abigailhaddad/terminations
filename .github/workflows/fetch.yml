@@ -121,13 +121,36 @@ jobs:
         run: python build_dashboard.py
 
       - name: Commit dashboard JSONs
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add web/data
           if git diff --cached --quiet; then
             echo "No dashboard changes to commit."
+            echo "committed=false" >> $GITHUB_OUTPUT
           else
             git commit -m "Update dashboard data [skip ci]"
             git push
+            echo "committed=true" >> $GITHUB_OUTPUT
           fi
+
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+    if: ${{ success() }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, needed to fast-forward prod
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fast-forward prod -> main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main prod || git fetch origin main
+          git checkout -B prod origin/main
+          git push origin prod --force-with-lease
