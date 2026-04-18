@@ -6,10 +6,10 @@
     "Terminate for Cause": 535,
     "Terminate for Default (complete or partial)": 283
   },
-  "total_deobligated": 6630490547,
+  "net_dollar_change": -6630490547,
   "unique_contractors": 9399,
   "unique_agencies": 51,
-  "built_at": "2026-04-18T19:53Z",
+  "built_at": "2026-04-18T20:28Z",
   "latest_termination_date": "2026-04-01",
   "as_of": "2026-04-18"
 }

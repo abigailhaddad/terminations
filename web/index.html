@@ -91,9 +91,9 @@
                 <h3>For Cause</h3>
                 <div class="stat-value" id="statCause">--</div>
             </div>
-            <div class="stat-card">
-                <h3>Total Deobligated</h3>
-                <div class="stat-value" id="statDeob">--</div>
+            <div class="stat-card" title="Signed sum of federal_action_obligation across all termination mods. Negative = money net pulled back.">
+                <h3>Net $ Change</h3>
+                <div class="stat-value" id="statNet">--</div>
             </div>
         </div>
 
@@ -127,7 +127,7 @@
                         <th>Sub-Agency</th>
                         <th>Description</th>
                         <th class="dt-right">Obligated</th>
-                        <th class="dt-right">Deobligated</th>
+                        <th class="dt-right" title="federal_action_obligation on this termination mod. Negative = money pulled back (normal); positive = mod added money (rare: settlements, rescissions).">Mod $ Change</th>
                         <th>NAICS</th>
                         <th>PSC</th>
                         <th>Pricing</th>
@@ -166,7 +166,7 @@
         { name: 'Sub-Agency',   field: 'sub_agency',         filterType: 'multiselect', index: 5 },
         { name: 'Description',  field: 'description',        filterType: 'text',        index: 6 },
         { name: 'Obligated',    field: 'total_obligated',    filterType: 'range',       index: 7, format: 'currency' },
-        { name: 'Deobligated',  field: 'termination_deobligated', filterType: 'range',  index: 8, format: 'currency' },
+        { name: 'Mod $ Change', field: 'federal_action_obligation', filterType: 'range',  index: 8, format: 'currency' },
         { name: 'NAICS',        field: 'naics',              filterType: 'text',        index: 9 },
         { name: 'PSC',          field: 'psc',                filterType: 'text',        index: 10 },
         { name: 'Pricing',      field: 'pricing',            filterType: 'multiselect', index: 11 },
@@ -344,19 +344,19 @@
     }
 
     function updateStats(rows) {
-        let conv = 0, def = 0, cause = 0, deob = 0;
+        let conv = 0, def = 0, cause = 0, net = 0;
         for (const r of rows) {
             const reason = r.termination_reason || '';
             if (/convenience/i.test(reason)) conv++;
             else if (/default/i.test(reason)) def++;
             else if (/cause/i.test(reason)) cause++;
-            if (typeof r.termination_deobligated === 'number') deob += r.termination_deobligated;
+            if (typeof r.federal_action_obligation === 'number') net += r.federal_action_obligation;
         }
         document.getElementById('statTotal').textContent = rows.length.toLocaleString();
         document.getElementById('statConvenience').textContent = conv.toLocaleString();
         document.getElementById('statDefault').textContent = def.toLocaleString();
         document.getElementById('statCause').textContent = cause.toLocaleString();
-        document.getElementById('statDeob').textContent = fmtDollarsShort(deob);
+        document.getElementById('statNet').textContent = fmtDollarsShort(net);
     }
 
     let allRecords = [];
@@ -436,7 +436,7 @@
                     },
                 },
                 { data: 'total_obligated', className: 'dt-right', render: (d, t) => t === 'display' ? fmtDollarsShort(d) : (d || 0) },
-                { data: 'termination_deobligated', className: 'dt-right', render: (d, t) => t === 'display' ? fmtDollarsShort(d) : (d || 0) },
+                { data: 'federal_action_obligation', className: 'dt-right', render: (d, t) => t === 'display' ? fmtDollarsShort(d) : (d || 0) },
                 { data: 'naics', defaultContent: '' },
                 { data: 'psc', defaultContent: '' },
                 { data: 'pricing', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },

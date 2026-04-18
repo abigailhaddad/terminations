@@ -111,11 +111,7 @@ def stream_and_aggregate() -> list[dict]:
             if action not in TERMINATION_CODES:
                 continue
 
-            # Termination mods are nearly always negative (money being pulled
-            # back); flip the sign so "deobligated" reads as a positive dollar.
             fao = _float(row, "federal_action_obligation")
-            deob = round(-fao, 2) if fao is not None else None
-
             records.append({
                 "key":                      key,
                 "piid":                     _val(row, "award_id_piid"),
@@ -125,7 +121,11 @@ def stream_and_aggregate() -> list[dict]:
                 "action_type":              _val(row, "action_type") or TERMINATION_CODES.get(action),
                 "action_date":              _val(row, "action_date") or "",
                 "total_obligated":          _float(row, "total_dollars_obligated"),
-                "termination_deobligated":  deob,
+                # Signed: matches FPDS federal_action_obligation exactly.
+                # Negative = money pulled back (the normal termination case);
+                # positive = termination mod that added money (settlements /
+                # rescissions / accounting corrections, ~0.5% of rows).
+                "federal_action_obligation": round(fao, 2) if fao is not None else None,
                 "ceiling":                  _float(row, "potential_total_value_of_award"),
                 "pop_start":                _val(row, "period_of_performance_start_date"),
                 "pop_end":                  _val(row, "period_of_performance_current_end_date"),
@@ -178,6 +178,7 @@ def enrich_contracts(records: list) -> list:
 def build_contracts_json(records: list) -> list:
     out = []
     for c in records:
+        fao = c.get("federal_action_obligation")
         out.append({
             "key":                   c["key"],
             "piid":                  c.get("piid"),
@@ -187,7 +188,7 @@ def build_contracts_json(records: list) -> list:
             "termination_reason":    c.get("termination_reason"),
             "termination_date":      (c.get("action_date") or "")[:10] or None,
             "total_obligated":       round(c["total_obligated"]) if c.get("total_obligated") else None,
-            "termination_deobligated": round(c["termination_deobligated"]) if c.get("termination_deobligated") else None,
+            "federal_action_obligation": round(fao) if fao is not None else None,
             "ceiling":               round(c["ceiling"]) if c.get("ceiling") else None,
             "contractor":            c.get("recipient_name"),
             "contractor_parent":     c.get("recipient_parent"),
@@ -215,15 +216,16 @@ def build_contracts_json(records: list) -> list:
 
 def build_summary(records: list) -> dict:
     by_reason = defaultdict(int)
-    deob = 0.0
+    net_change = 0.0
     contractors = set()
     agencies = set()
     contracts = set()
     latest_term_date = ""
     for r in records:
         by_reason[r.get("termination_reason") or "Unknown"] += 1
-        if r.get("termination_deobligated"):
-            deob += r["termination_deobligated"]
+        fao = r.get("federal_action_obligation")
+        if fao is not None:
+            net_change += fao
         if r.get("contractor"):
             contractors.add(r["contractor"])
         if r.get("department"):
@@ -237,7 +239,9 @@ def build_summary(records: list) -> dict:
         "total_terminations":       len(records),
         "unique_contracts":         len(contracts),
         "by_reason":                dict(by_reason),
-        "total_deobligated":        round(deob),
+        # Signed net sum of federal_action_obligation across all termination
+        # mods. Negative = money net pulled back (the expected sign).
+        "net_dollar_change":        round(net_change),
         "unique_contractors":       len(contractors),
         "unique_agencies":          len(agencies),
         "built_at":                 datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
@@ -289,7 +293,7 @@ def main():
 
     summary = build_summary(records)
     print(f"  summary.json: {summary['total_terminations']:,} terminations, "
-          f"${summary['total_deobligated']/1e9:.2f}B deobligated")
+          f"net ${summary['net_dollar_change']/1e9:.2f}B (negative = pulled back)")
 
     filters = build_filter_options(records)
     config_mirror = build_config_mirror()

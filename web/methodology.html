@@ -118,9 +118,24 @@
                 appears multiple times.
             </p>
             <p>
-                <strong>Deobligated amount</strong> is the <code>federal_action_obligation</code> on
-                the termination modification itself. Termination mods are typically negative (money
-                being pulled back off the contract); the dashboard shows it as a positive dollar figure.
+                <strong>Mod $ Change</strong> is the raw <code>federal_action_obligation</code> on
+                the termination modification, matching FPDS sign convention:
+            </p>
+            <ul>
+                <li><strong>Negative</strong> &mdash; money pulled back off the contract. This is the
+                    expected case for a termination and covers ~80% of rows.</li>
+                <li><strong>Positive</strong> &mdash; the termination modification added money.
+                    Roughly 0.5% of rows. These are typically termination settlements (contractor
+                    paid out for partial performance), rescissions of prior terminations, or
+                    accounting corrections.</li>
+                <li><strong>Null or zero</strong> &mdash; the termination modification moved no
+                    money. About 19% of rows, usually administrative closeouts where the dollars
+                    shift on a separate modification.</li>
+            </ul>
+            <p>
+                The dashboard's <strong>Net $ Change</strong> stat is the signed sum across all
+                visible rows. A negative total means money was net pulled back (the expected
+                direction); the stat updates as you filter the table.
             </p>
         </div>
 

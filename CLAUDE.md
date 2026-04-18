@@ -32,8 +32,10 @@ python3 fetch_awards.py --force-current-fy # refresh just current FY
 ### Step 2 -- `build_dashboard.py`
 Streams termination rows, one record per termination modification (a contract
 with N termination mods produces N records). Builds dashboard JSONs.
-- `termination_deobligated` = sign-flipped `federal_action_obligation` on the
-  termination mod itself (so it reads as a positive dollar amount)
+- `federal_action_obligation` preserved with FPDS sign convention: negative =
+  money pulled back (the normal termination case), positive = mod added money
+  (settlements / rescissions, ~0.5% of rows). Summary exposes `net_dollar_change`
+  as the signed sum.
 - Output: `web/data/{terminations.json, summary.json, filters.json, config.json}`
 
 ## Config
@@ -60,7 +62,7 @@ labels:
 | `termination_reason` | Human-friendly label |
 | `termination_date` | `action_date` of the termination mod |
 | `total_obligated` | Cumulative `total_dollars_obligated` at termination |
-| `termination_deobligated` | Sign-flipped `federal_action_obligation` on this termination mod |
+| `federal_action_obligation` | Raw signed FPDS value on this termination mod (negative = pulled back) |
 | `ceiling` | `potential_total_value_of_award` |
 | `contractor`, `contractor_parent` | Recipient name + parent |
 | `department`, `sub_agency`, `awarding_office` | Issuing agency |
