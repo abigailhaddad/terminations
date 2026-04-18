@@ -138,6 +138,8 @@ def main() -> None:
                         help="Re-download even if checkpoint exists")
     parser.add_argument("--force-current-fy", action="store_true",
                         help="Re-download current FY only (for monthly refresh)")
+    parser.add_argument("--summary-file", default="",
+                        help="Append a markdown per-run summary to this file (e.g. $GITHUB_STEP_SUMMARY)")
     args = parser.parse_args()
 
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
@@ -171,6 +173,7 @@ def main() -> None:
     ip_blocked = False
     total_kept = 0
     total_scanned = 0
+    run_results: list[tuple[int, str, str, int, int]] = []  # (fy, code, name, scanned, kept)
 
     for fy in args.fy:
         if ip_blocked:
@@ -249,6 +252,7 @@ def main() -> None:
             os.unlink(zip_path)
             total_kept += rows_kept
             total_scanned += rows_scanned
+            run_results.append((fy, code, name, rows_scanned, rows_kept))
             print(f"scanned {rows_scanned:,}  ->  kept {rows_kept:,} terminations")
 
     # Merge all checkpoints into one CSV
@@ -302,6 +306,19 @@ def main() -> None:
         print(f"\nIP blocked -- re-run to continue. Progress saved.")
     else:
         print("\nDone!")
+
+    if args.summary_file and run_results:
+        lines = [f"## This run: {len(run_results)} agency/FY file(s) downloaded\n"]
+        lines.append(f"**Total rows scanned:** {total_scanned:,}  ")
+        lines.append(f"**Termination rows kept:** {total_kept:,}  ")
+        lines.append(f"**Status:** {'IP blocked -- chaining next run' if ip_blocked else 'Complete'}\n")
+        lines.append("| FY | Agency | Rows scanned | Terminations kept |")
+        lines.append("|----|--------|--------------|-------------------|")
+        for fy, code, name, scanned, kept in run_results:
+            lines.append(f"| {fy} | {name} ({code}) | {scanned:,} | {kept:,} |")
+        lines.append("")
+        with open(args.summary_file, "a") as f:
+            f.write("\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":
