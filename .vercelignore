@@ -3,7 +3,7 @@
 *.py
 requirements.txt
 config.yaml
-data/
+/data/
 .github/
 CLAUDE.md
 README.md
