@@ -49,9 +49,12 @@
         <div class="doc-section">
             <h2>Source</h2>
             <p>
-                All records come from the <a href="https://files.usaspending.gov/award_data_archive/">USASpending award data archive</a>,
-                per-agency ZIP files covering the fiscal years listed below.
-                No API key is required.
+                All records come from USASpending's
+                <a href="https://www.usaspending.gov/download_center/award_data_archive">Award Data Archive</a>
+                &mdash; the official bulk-download center where USASpending publishes per-agency,
+                per-fiscal-year contract ZIPs covering every prime award transaction. This
+                pipeline downloads one ZIP per toptier agency per fiscal year for the years
+                listed below.
             </p>
             <p>
                 Fiscal years pulled: <span id="metaYears">--</span>

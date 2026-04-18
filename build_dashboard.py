@@ -13,7 +13,7 @@ import csv
 import json
 import sys
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -219,6 +219,7 @@ def build_summary(records: list) -> dict:
     contractors = set()
     agencies = set()
     contracts = set()
+    latest_term_date = ""
     for r in records:
         by_reason[r.get("termination_reason") or "Unknown"] += 1
         if r.get("termination_deobligated"):
@@ -228,6 +229,9 @@ def build_summary(records: list) -> dict:
         if r.get("department"):
             agencies.add(r["department"])
         contracts.add(r["key"])
+        td = r.get("termination_date") or ""
+        if td and td > latest_term_date:
+            latest_term_date = td
 
     return {
         "total_terminations":       len(records),
@@ -236,6 +240,8 @@ def build_summary(records: list) -> dict:
         "total_deobligated":        round(deob),
         "unique_contractors":       len(contractors),
         "unique_agencies":          len(agencies),
+        "built_at":                 datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
+        "latest_termination_date":  latest_term_date[:10] or None,
         "as_of":                    TODAY_STR,
     }
 

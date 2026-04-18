@@ -57,6 +57,10 @@
         <header class="site-header">
             <h1>Federal Contract Terminations</h1>
             <p class="site-subtitle">Every federal contract termination modification since FY2025 &mdash; with the reason (Default, Convenience, or Cause), deobligated amount, agency, and vendor. Sourced from USASpending bulk archives.</p>
+            <p class="site-meta" style="color: var(--color-text-muted); font-size: 0.9rem; margin-top: -0.3rem;">
+                Latest termination: <strong id="metaLatest">--</strong>
+                &middot; Pipeline last ran: <strong id="metaBuilt">--</strong>
+            </p>
             <nav class="page-nav">
                 <a href="index.html" class="active">Dashboard</a>
                 <a href="methodology.html">Methodology</a>
@@ -137,9 +141,9 @@
 
         <footer class="site-footer">
             <p>
-                Data from <a href="https://www.usaspending.gov/">USASpending bulk archives</a>
+                Data from USASpending's
+                <a href="https://www.usaspending.gov/download_center/award_data_archive">Award Data Archive</a>
                 &middot; action_type codes E (Default), F (Convenience), X (Cause)
-                &middot; As of <span id="asOf">--</span>
             </p>
         </footer>
     </div>
@@ -369,7 +373,12 @@
         ]);
 
         allRecords = records;
-        document.getElementById('asOf').textContent = summary.as_of || '';
+        const meta = {
+            latest: summary.latest_termination_date || '--',
+            built:  summary.built_at || summary.as_of || '--',
+        };
+        document.getElementById('metaLatest').textContent = meta.latest;
+        document.getElementById('metaBuilt').textContent = meta.built;
 
         filterManager = new TermFilterManager({
             tableSelector: '#termTable',
