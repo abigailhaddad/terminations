@@ -1,0 +1,31 @@
+[
+  {
+    "key": "CONT_AWD_24322625F0052_2400_24322621A0205_2400",
+    "piid": "24322625F0052",
+    "parent_piid": "24322621A0205",
+    "mod_number": "P00002",
+    "termination_code": "F",
+    "termination_reason": "Terminate for Convenience (complete or partial)",
+    "termination_date": "2026-04-01",
+    "total_obligated": 271949,
+    "termination_deobligated": 277953,
+    "ceiling": 271949,
+    "contractor": "PBG CONSULTING, LLC",
+    "contractor_parent": "PBG CONSULTING, LLC",
+    "department": "Office of Personnel Management",
+    "sub_agency": "Office of Personnel Management",
+    "awarding_office": "OPM DC CENTRAL OFFICE CONTRACTING",
+    "funding_office": "OPM DC CENTRAL OFFICE CONTRACTING",
+    "description": "POSTAL SENIOR PRODUCT MANAGER TASK ORDER 2",
+    "naics": "541511",
+    "naics_desc": "CUSTOM COMPUTER PROGRAMMING SERVICES",
+    "psc": "DF01",
+    "psc_desc": "IT AND TELECOM - IT MANAGEMENT SUPPORT SERVICES (LABOR)",
+    "pricing": "Firm Fixed Price",
+    "set_aside": "NONE",
+    "pop_start": "2025-08-25",
+    "pop_end": "2026-04-01",
+    "place_state": "VA",
+    "link": "https://www.usaspending.gov/award/CONT_AWD_24322625F0052_2400_24322621A0205_2400/"
+  }
+]

@@ -1,0 +1,33 @@
+# Terminations dashboard — pipeline configuration.
+# Read by fetch_awards.py and build_dashboard.py.
+
+fetch:
+  # Fiscal years to pull. USASpending bulk archives go back to FY2017.
+  fiscal_years: [2025, 2026]
+
+  # FPDS action_type_code values that indicate a termination.
+  # Only rows with these codes are kept; all other modifications are dropped
+  # at ingestion to keep the checkpoint CSVs small.
+  termination_codes:
+    E: Terminate for Default (complete or partial)
+    F: Terminate for Convenience (complete or partial)
+    X: Terminate for Cause
+
+labels:
+  # Severity ordering used when a contract has multiple termination mods.
+  # Higher severity wins (Default/Cause > Convenience).
+  termination_severity:
+    X: 2
+    E: 2
+    F: 1
+
+  # Pricing type code -> human-friendly name.
+  pricing_types:
+    J: Firm Fixed Price
+    Y: Time & Materials
+    Z: Labor Hours
+    U: Cost Plus Fixed Fee
+    V: Cost Plus Award Fee
+    S: Cost No Fee
+    R: Cost Plus Incentive Fee
+    A: Fixed Price Redetermination

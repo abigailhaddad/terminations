@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Methodology &mdash; Federal Contract Terminations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="shared/shared.css">
+    <style>
+        .page-nav { margin-top: 0.5rem; }
+        .page-nav a {
+            margin-right: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            color: var(--color-text-muted);
+        }
+        .page-nav a.active {
+            color: var(--color-accent);
+            border-bottom: 2px solid var(--color-accent);
+        }
+        .doc-section { margin-top: 2rem; }
+        .doc-section h2 { font-family: 'DM Sans', sans-serif; font-size: 1.4rem; margin-bottom: 0.75rem; }
+        .doc-section p, .doc-section li { font-size: 0.95rem; line-height: 1.55; }
+        table.meta { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 0.5rem 0 1rem; }
+        table.meta th, table.meta td {
+            text-align: left; padding: 6px 10px;
+            border-bottom: 1px solid var(--color-border);
+        }
+        code { background: var(--color-bg-muted); padding: 2px 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="experimental-banner">
+        This is experimental &mdash; please do not rely on this.
+    </div>
+    <div class="site-container">
+        <header class="site-header">
+            <h1>Methodology</h1>
+            <p class="site-subtitle">Where the data comes from and how it is classified.</p>
+            <nav class="page-nav">
+                <a href="index.html">Dashboard</a>
+                <a href="methodology.html" class="active">Methodology</a>
+            </nav>
+        </header>
+
+        <div class="doc-section">
+            <h2>Source</h2>
+            <p>
+                All records come from the <a href="https://files.usaspending.gov/award_data_archive/">USASpending award data archive</a>,
+                per-agency ZIP files covering the fiscal years listed below.
+                USASpending sources its contract data from FPDS (the Federal Procurement Data System).
+                No API key is required and there is no rate limit; the only constraint is that
+                USASpending will occasionally IP-block a fast scraper after ~50 downloads.
+            </p>
+            <p>
+                Fiscal years pulled: <span id="metaYears">--</span>
+            </p>
+        </div>
+
+        <div class="doc-section">
+            <h2>What is a termination?</h2>
+            <p>
+                Every modification to a federal contract carries an FPDS <code>action_type_code</code>. Three of
+                those codes indicate the contract was terminated:
+            </p>
+            <table class="meta">
+                <thead>
+                    <tr><th>Code</th><th>Reason</th><th>Meaning</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>F</code></td>
+                        <td><strong>Terminate for Convenience</strong></td>
+                        <td>The government ended the contract because it was in the government's interest. No contractor fault implied.</td>
+                    </tr>
+                    <tr>
+                        <td><code>E</code></td>
+                        <td><strong>Terminate for Default</strong></td>
+                        <td>The contractor failed to perform. Used for commercial-items and simplified-acquisition contracts.</td>
+                    </tr>
+                    <tr>
+                        <td><code>X</code></td>
+                        <td><strong>Terminate for Cause</strong></td>
+                        <td>The contractor failed to perform on a non-commercial contract. Similar to Default but in different FAR parts.</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>
+                The pipeline scans every contract modification in the source data and keeps only rows
+                with one of these three codes. Non-termination modifications (option exercises, funding
+                changes, administrative corrections, etc.) are dropped at ingestion.
+            </p>
+        </div>
+
+        <div class="doc-section">
+            <h2>Aggregation</h2>
+            <p>
+                Contracts can have more than one termination modification (for partial terminations, or
+                when a termination is rescinded and re-filed). Each contract is reduced to one row,
+                keeping the most severe termination action; Default and Cause outrank Convenience.
+                Within the same severity, the latest action_date wins.
+            </p>
+            <p>
+                <strong>Deobligated amount</strong> is the sum of <code>federal_action_obligation</code>
+                across all termination modifications for the contract. It is typically negative because
+                termination mods pull money back off the contract; the dashboard shows it as a positive
+                dollar figure.
+            </p>
+        </div>
+
+        <div class="doc-section">
+            <h2>Caveats</h2>
+            <ul>
+                <li>
+                    FPDS is contractor- and contracting-officer-reported. Late or missing modifications
+                    will not appear until the next bulk archive refresh.
+                </li>
+                <li>
+                    A termination "for convenience" does not imply anything went wrong &mdash; it can reflect a
+                    change in agency priorities, appropriations, or mission need.
+                </li>
+                <li>
+                    <code>total_obligated</code> reflects the latest cumulative value on the contract at
+                    the moment of the termination modification. It may have been subsequently adjusted.
+                </li>
+                <li>
+                    Grants, loans, and other non-contract awards are excluded. This dashboard only covers
+                    FPDS procurement contracts.
+                </li>
+            </ul>
+        </div>
+
+        <footer class="site-footer">
+            <p>
+                Data from <a href="https://www.usaspending.gov/">USASpending bulk archives</a>
+                &middot; As of <span id="asOf">--</span>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+    (async function () {
+        try {
+            const cfg = await fetch('data/config.json').then(r => r.json());
+            document.getElementById('metaYears').textContent =
+                (cfg.fetch && cfg.fetch.fiscal_years && cfg.fetch.fiscal_years.join(', ')) || '--';
+            document.getElementById('asOf').textContent = cfg.as_of || '--';
+        } catch (e) {
+            document.getElementById('metaYears').textContent = '(config not loaded)';
+        }
+    })();
+    </script>
+</body>
+</html>

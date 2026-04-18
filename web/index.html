@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Federal Contract Terminations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="shared/shared.css">
+    <style>
+        .page-nav { margin-top: 0.5rem; }
+        .page-nav a {
+            margin-right: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            color: var(--color-text-muted);
+        }
+        .page-nav a.active {
+            color: var(--color-accent);
+            border-bottom: 2px solid var(--color-accent);
+        }
+        .dataTables_wrapper .row { margin: 0; }
+        .dataTables_wrapper .row > div { padding: 0; }
+        .list-cell {
+            display: inline-block;
+            max-width: 320px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+            cursor: pointer;
+        }
+        .list-cell:hover,
+        .list-cell:focus {
+            white-space: normal;
+            overflow: visible;
+            max-width: none;
+            outline: none;
+        }
+        .reason-default    { color: var(--color-error); font-weight: 600; }
+        .reason-cause      { color: var(--color-error); font-weight: 600; }
+        .reason-convenience { color: var(--color-highlight); font-weight: 600; }
+        .reason-other      { color: var(--color-text-muted); font-weight: 500; }
+        .chart-card canvas { max-height: 220px; }
+        .chart-card.chart-tall canvas { max-height: 320px; }
+    </style>
+</head>
+<body>
+    <div class="experimental-banner">
+        This is experimental &mdash; please do not rely on this.
+    </div>
+    <div class="site-container">
+        <header class="site-header">
+            <h1>Federal Contract Terminations</h1>
+            <p class="site-subtitle">Every federal contract terminated since FY2025 &mdash; with the reason (Default, Convenience, or Cause), deobligated amount, agency, and vendor. Sourced from USASpending bulk archives (FPDS).</p>
+            <nav class="page-nav">
+                <a href="index.html" class="active">Dashboard</a>
+                <a href="methodology.html">Methodology</a>
+            </nav>
+        </header>
+
+        <div id="toolbarButtons" class="toolbar-row"></div>
+        <div class="filters-bar-container">
+            <div class="filters-bar" id="filtersBar">
+                <span class="filters-bar-empty">No filters applied</span>
+            </div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <h3>Total Terminations</h3>
+                <div class="stat-value" id="statTotal">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>For Convenience</h3>
+                <div class="stat-value" id="statConvenience">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>For Default</h3>
+                <div class="stat-value" id="statDefault">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>For Cause</h3>
+                <div class="stat-value" id="statCause">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Deobligated</h3>
+                <div class="stat-value" id="statDeob">--</div>
+            </div>
+        </div>
+
+        <section class="charts-section">
+            <div class="charts-grid">
+                <div class="chart-card chart-tall">
+                    <h3>Top agencies (by termination count)</h3>
+                    <canvas id="chartAgency"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>By termination reason</h3>
+                    <canvas id="chartReason"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <div id="loadingBox" class="loading-text" style="padding: 2rem 0;">Loading terminations...</div>
+        <div class="table-scroll-wrapper" id="tableWrap" style="display:none;">
+            <table id="termTable" class="table" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Term. Date</th>
+                        <th>Reason</th>
+                        <th>PIID</th>
+                        <th>Contractor</th>
+                        <th>Agency</th>
+                        <th>Sub-Agency</th>
+                        <th>Description</th>
+                        <th class="dt-right">Obligated</th>
+                        <th class="dt-right">Deobligated</th>
+                        <th>NAICS</th>
+                        <th>PSC</th>
+                        <th>Pricing</th>
+                        <th>Set-Aside</th>
+                        <th>State</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <footer class="site-footer">
+            <p>
+                Data from <a href="https://www.usaspending.gov/">USASpending bulk archives</a>
+                &middot; FPDS action_type codes E (Default), F (Convenience), X (Cause)
+                &middot; As of <span id="asOf">--</span>
+            </p>
+        </footer>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="shared/shared.js"></script>
+    <script>
+    window.API_BASE = '';
+
+    const COLUMNS = [
+        { name: 'Term. Date',   field: 'termination_date',   filterType: 'daterange',   index: 0 },
+        { name: 'Reason',       field: 'termination_reason', filterType: 'multiselect', index: 1 },
+        { name: 'PIID',         field: 'piid',               filterType: 'text',        index: 2 },
+        { name: 'Contractor',   field: 'contractor',         filterType: 'text',        index: 3 },
+        { name: 'Agency',       field: 'department',         filterType: 'multiselect', index: 4 },
+        { name: 'Sub-Agency',   field: 'sub_agency',         filterType: 'multiselect', index: 5 },
+        { name: 'Description',  field: 'description',        filterType: 'text',        index: 6 },
+        { name: 'Obligated',    field: 'total_obligated',    filterType: 'range',       index: 7, format: 'currency' },
+        { name: 'Deobligated',  field: 'termination_deobligated', filterType: 'range',  index: 8, format: 'currency' },
+        { name: 'NAICS',        field: 'naics',              filterType: 'text',        index: 9 },
+        { name: 'PSC',          field: 'psc',                filterType: 'text',        index: 10 },
+        { name: 'Pricing',      field: 'pricing',            filterType: 'multiselect', index: 11 },
+        { name: 'Set-Aside',    field: 'set_aside',          filterType: 'multiselect', index: 12 },
+        { name: 'State',        field: 'place_state',        filterType: 'multiselect', index: 13 },
+    ];
+
+    Chart.defaults.font.family = "'Source Sans 3', sans-serif";
+    Chart.defaults.color = '#7A6E62';
+
+    const CHART_COLORS = {
+        primary:      '#2D6A4F',
+        primaryLight: 'rgba(45, 106, 79, 0.7)',
+        highlight:    '#D4A03C',
+        error:        '#B03A2E',
+        grid:         '#E8DDD0',
+        tickLabel:    '#7A6E62',
+    };
+
+    const CHART_TOOLTIP = {
+        backgroundColor: '#2A211A',
+        titleColor: '#F5EDE0',
+        bodyColor: '#F5EDE0',
+        borderColor: '#3D2B1F',
+        borderWidth: 1,
+        cornerRadius: 6,
+        titleFont: { family: "'Source Sans 3', sans-serif", weight: 600 },
+        bodyFont: { family: "'Source Sans 3', sans-serif" },
+        padding: 10,
+    };
+
+    function fmtDollarsShort(n) {
+        if (n == null || isNaN(n)) return '--';
+        const abs = Math.abs(n);
+        const sign = n < 0 ? '-' : '';
+        const v = Math.abs(n);
+        if (abs >= 1e9) return sign + '$' + (v / 1e9).toFixed(1) + 'B';
+        if (abs >= 1e6) return sign + '$' + (v / 1e6).toFixed(1) + 'M';
+        if (abs >= 1e3) return sign + '$' + Math.round(v / 1e3) + 'K';
+        return sign + '$' + Math.round(v).toLocaleString();
+    }
+
+    function reasonRender(r) {
+        if (!r) return '<span class="reason-other">Unknown</span>';
+        const cls = /default/i.test(r) ? 'reason-default'
+            : /cause/i.test(r) ? 'reason-cause'
+            : /convenience/i.test(r) ? 'reason-convenience'
+            : 'reason-other';
+        return '<span class="' + cls + '">' + escapeHtml(r) + '</span>';
+    }
+
+    class TermFilterManager extends ServerSideFilterManager {
+        _rowMatches(row) {
+            for (const [field, filter] of Object.entries(this.activeFilters)) {
+                const val = row[field];
+                if (filter.type === 'multiselect') {
+                    if (val == null || !filter.values.includes(String(val))) return false;
+                } else if (filter.type === 'range') {
+                    const num = val == null || val === '' ? null : Number(val);
+                    if (num === null || isNaN(num)) return false;
+                    if (filter.min != null && num < filter.min) return false;
+                    if (filter.max != null && num > filter.max) return false;
+                } else if (filter.type === 'daterange') {
+                    if (!val) return false;
+                    const v = String(val);
+                    if (filter.min && v < filter.min) return false;
+                    if (filter.max && v > filter.max) return false;
+                } else if (filter.type === 'text') {
+                    const terms = String(filter.value).split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+                    if (val == null) return false;
+                    const hay = String(val).toLowerCase();
+                    if (!terms.some(t => hay.includes(t))) return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    let chartAgency = null, chartReason = null;
+
+    function createCharts() {
+        chartAgency = new Chart(document.getElementById('chartAgency'), {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Terminations', data: [], backgroundColor: CHART_COLORS.primary, borderWidth: 0 }] },
+            options: {
+                indexAxis: 'y',
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.tickLabel } },
+                    y: { grid: { display: false }, ticks: { color: CHART_COLORS.tickLabel, font: { size: 11 } } },
+                },
+            },
+        });
+
+        chartReason = new Chart(document.getElementById('chartReason'), {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Terminations', data: [], backgroundColor: [CHART_COLORS.highlight, CHART_COLORS.error, CHART_COLORS.error, CHART_COLORS.primary], borderWidth: 0 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: CHART_COLORS.grid },
+                        ticks: {
+                            color: CHART_COLORS.tickLabel, precision: 0,
+                            callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'K' : v,
+                        },
+                    },
+                    x: { grid: { display: false }, ticks: { color: CHART_COLORS.tickLabel } },
+                },
+            },
+        });
+    }
+
+    function updateCharts(rows) {
+        // Top agencies
+        const agencyCounts = {};
+        for (const r of rows) {
+            const a = r.department || '(none)';
+            agencyCounts[a] = (agencyCounts[a] || 0) + 1;
+        }
+        const topAgencies = Object.entries(agencyCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+        chartAgency.data.labels = topAgencies.map(x => x[0]);
+        chartAgency.data.datasets[0].data = topAgencies.map(x => x[1]);
+        chartAgency.update();
+
+        // Reasons
+        const reasonCounts = {};
+        for (const r of rows) {
+            const k = r.termination_reason || 'Unknown';
+            reasonCounts[k] = (reasonCounts[k] || 0) + 1;
+        }
+        const sorted = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]);
+        chartReason.data.labels = sorted.map(x => x[0]);
+        chartReason.data.datasets[0].data = sorted.map(x => x[1]);
+        chartReason.update();
+    }
+
+    function updateStats(rows) {
+        let conv = 0, def = 0, cause = 0, deob = 0;
+        for (const r of rows) {
+            const reason = r.termination_reason || '';
+            if (/convenience/i.test(reason)) conv++;
+            else if (/default/i.test(reason)) def++;
+            else if (/cause/i.test(reason)) cause++;
+            if (typeof r.termination_deobligated === 'number') deob += r.termination_deobligated;
+        }
+        document.getElementById('statTotal').textContent = rows.length.toLocaleString();
+        document.getElementById('statConvenience').textContent = conv.toLocaleString();
+        document.getElementById('statDefault').textContent = def.toLocaleString();
+        document.getElementById('statCause').textContent = cause.toLocaleString();
+        document.getElementById('statDeob').textContent = fmtDollarsShort(deob);
+    }
+
+    let allRecords = [];
+    let filterManager = null;
+    let table = null;
+
+    const DATA_BASE = window.DATA_BASE || 'data';
+
+    async function init() {
+        createCharts();
+
+        const [summary, records] = await Promise.all([
+            fetch(DATA_BASE + '/summary.json').then(r => r.json()),
+            fetch(DATA_BASE + '/terminations.json').then(r => r.json()),
+        ]);
+
+        allRecords = records;
+        document.getElementById('asOf').textContent = summary.as_of || '';
+
+        filterManager = new TermFilterManager({
+            tableSelector: '#termTable',
+            columns: COLUMNS,
+            filterBarId: 'filtersBar',
+            syncURL: true,
+            showCopyLinkButton: true,
+            clientSide: true,
+            data: allRecords,
+            onFilterChange: function () {
+                const filtered = filterManager.getFilteredData();
+                updateStats(filtered);
+                updateCharts(filtered);
+            },
+        });
+
+        $.fn.dataTable.ext.search.push(function (settings, searchData, dataIndex, rowData) {
+            if (settings.nTable.id !== 'termTable') return true;
+            if (!filterManager) return true;
+            return filterManager._rowMatches(rowData);
+        });
+
+        document.getElementById('loadingBox').style.display = 'none';
+        document.getElementById('tableWrap').style.display = '';
+
+        table = $('#termTable').DataTable({
+            data: allRecords,
+            deferRender: true,
+            columns: [
+                { data: 'termination_date', defaultContent: '' },
+                { data: 'termination_reason', render: (d, t) => t === 'display' ? reasonRender(d) : (d || '') },
+                {
+                    data: 'piid',
+                    defaultContent: '',
+                    render: (d, t, row) => {
+                        if (t !== 'display') return d || '';
+                        if (!d) return '';
+                        if (row.link) {
+                            return '<a href="' + escapeHtml(row.link) + '" target="_blank" rel="noopener">' + escapeHtml(d) + '</a>';
+                        }
+                        return escapeHtml(d);
+                    },
+                },
+                { data: 'contractor', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
+                { data: 'department', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
+                { data: 'sub_agency', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
+                {
+                    data: 'description',
+                    orderable: false,
+                    render: (d, t) => {
+                        if (t !== 'display') return d || '';
+                        if (!d) return '';
+                        return '<span class="list-cell" tabindex="0" title="' + escapeHtml(d) + '">' + escapeHtml(d) + '</span>';
+                    },
+                },
+                { data: 'total_obligated', className: 'dt-right', render: (d, t) => t === 'display' ? fmtDollarsShort(d) : (d || 0) },
+                { data: 'termination_deobligated', className: 'dt-right', render: (d, t) => t === 'display' ? fmtDollarsShort(d) : (d || 0) },
+                { data: 'naics', defaultContent: '' },
+                { data: 'psc', defaultContent: '' },
+                { data: 'pricing', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
+                { data: 'set_aside', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
+                { data: 'place_state', defaultContent: '' },
+            ],
+            pageLength: 25,
+            lengthMenu: [10, 25, 50, 100, 250],
+            order: [[0, 'desc']], // termination date desc
+            language: {
+                emptyTable: 'No terminations match these filters',
+                zeroRecords: 'No terminations match these filters',
+                thousands: ',',
+                info: 'Showing _START_ to _END_ of _TOTAL_ terminations',
+                infoFiltered: ' (filtered from _MAX_ total)',
+                infoEmpty: 'No terminations',
+            },
+            pagingType: 'simple_numbers',
+            dom: '<"d-flex justify-content-between align-items-center"lip>rt<"d-flex justify-content-between align-items-center"lip>',
+        });
+
+        filterManager.init(table);
+
+        const toolbarEl = document.getElementById('toolbarButtons');
+        const csvBtn = document.createElement('button');
+        csvBtn.className = 'csv-download-btn';
+        csvBtn.textContent = 'Download CSV';
+        csvBtn.title = 'Download filtered terminations as CSV';
+        csvBtn.addEventListener('click', () => {
+            const rows = filterManager.getFilteredData();
+            downloadCSV(rows, COLUMNS, 'terminations.csv');
+        });
+        toolbarEl.appendChild(csvBtn);
+
+        const initial = filterManager.getFilteredData();
+        updateStats(initial);
+        updateCharts(initial);
+    }
+
+    $(document).ready(init);
+    </script>
+</body>
+</html>

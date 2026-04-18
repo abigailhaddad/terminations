@@ -1,0 +1,19 @@
+{
+  "as_of": "2026-04-18",
+  "fetch": {
+    "fiscal_years": [
+      2025,
+      2026
+    ],
+    "termination_codes": {
+      "E": "Terminate for Default (complete or partial)",
+      "F": "Terminate for Convenience (complete or partial)",
+      "X": "Terminate for Cause"
+    }
+  },
+  "termination_codes": {
+    "E": "Terminate for Default (complete or partial)",
+    "F": "Terminate for Convenience (complete or partial)",
+    "X": "Terminate for Cause"
+  }
+}
