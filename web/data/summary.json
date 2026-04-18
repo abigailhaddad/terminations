@@ -1,10 +1,12 @@
 {
-  "total_terminations": 1,
+  "total_terminations": 61610,
   "by_reason": {
-    "Terminate for Convenience (complete or partial)": 1
+    "Terminate for Convenience (complete or partial)": 60874,
+    "Terminate for Cause": 483,
+    "Terminate for Default (complete or partial)": 253
   },
-  "total_deobligated": 277953,
-  "unique_contractors": 1,
-  "unique_agencies": 1,
+  "total_deobligated": 5942380153,
+  "unique_contractors": 9040,
+  "unique_agencies": 49,
   "as_of": "2026-04-18"
 }
