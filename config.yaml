@@ -5,7 +5,7 @@ fetch:
   # Fiscal years to pull. USASpending bulk archives go back to FY2017.
   fiscal_years: [2025, 2026]
 
-  # FPDS action_type_code values that indicate a termination.
+  # action_type_code values that indicate a termination.
   # Only rows with these codes are kept; all other modifications are dropped
   # at ingestion to keep the checkpoint CSVs small.
   termination_codes:

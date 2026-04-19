@@ -119,7 +119,7 @@
             </p>
             <p>
                 <strong>Mod $ Change</strong> is the raw <code>federal_action_obligation</code> on
-                the termination modification, matching FPDS sign convention:
+                the termination modification, using the source data's sign convention:
             </p>
             <ul>
                 <li><strong>Negative</strong> &mdash; money pulled back off the contract. This is the
@@ -142,16 +142,18 @@
         <div class="doc-section">
             <h2>State</h2>
             <p>
-                The <strong>State</strong> column is the FPDS
-                <code>primary_place_of_performance_state_code</code> — the 2-letter US code for where
-                the work was performed. No fallback fields are used.
+                The <strong>State</strong> column is
+                <code>primary_place_of_performance_state_code</code> from USASpending — the
+                2-letter US code for where the work was performed. No fallback fields are used.
+                Rows with no value are labeled <strong>Unknown</strong> in the table and filter
+                (selectable/excludable like any other state).
             </p>
             <p>
-                About <strong>9.3% of termination rows have no state populated</strong> in FPDS. These
-                are typically foreign place-of-performance, undisclosed recipients (e.g., cases
-                recorded as "DOMESTIC AWARDEES (UNDISCLOSED)"), services spanning multiple states, or
-                simply missing data. Those rows are included in every table/chart count and the
-                Net $ Change stat, but don't appear on the map.
+                About <strong>9.3% of termination rows have no state populated</strong> in the
+                source data. These are typically foreign place-of-performance, undisclosed recipients
+                (e.g., cases recorded as "DOMESTIC AWARDEES (UNDISCLOSED)"), services spanning
+                multiple states, or simply missing data. Those rows are included in every
+                table/chart count and the Net $ Change stat, but don't appear on the map.
             </p>
         </div>
 

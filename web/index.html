@@ -160,7 +160,7 @@
                         <th>PSC</th>
                         <th>Pricing</th>
                         <th>Set-Aside</th>
-                        <th title="Primary place of performance (2-letter US code). ~9% of rows have no state in FPDS (foreign / undisclosed / multi-state); those are still counted in totals but don't appear on the map.">State</th>
+                        <th title="Primary place of performance (2-letter US code). Rows with no value show as Unknown and are selectable in the State filter. They count toward totals but don't appear on the map.">State</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -352,10 +352,16 @@
             }
         }
         const onMap = rows.length - missing;
-        document.getElementById('mapFootnote').textContent =
-            `Showing ${onMap.toLocaleString()} of ${rows.length.toLocaleString()} terminations. ` +
-            `${missing.toLocaleString()} have no primary place-of-performance state in FPDS ` +
-            `(foreign, undisclosed, multi-state, or missing) and are not plotted.`;
+        const footnote = document.getElementById('mapFootnote');
+        if (missing === 0) {
+            footnote.textContent = `Showing all ${onMap.toLocaleString()} terminations on the map.`;
+        } else {
+            footnote.textContent =
+                `Showing ${onMap.toLocaleString()} of ${rows.length.toLocaleString()} terminations. ` +
+                `${missing.toLocaleString()} have no primary place-of-performance state ` +
+                `(foreign, undisclosed, multi-state, or missing from the source data) ` +
+                `and are not plotted. Use the State filter's "Unknown" option to see them.`;
+        }
         const locations = Object.keys(byState);
 
         let z, colorbarTitle, hovertemplate;

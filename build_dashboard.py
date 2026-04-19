@@ -121,7 +121,7 @@ def stream_and_aggregate() -> list[dict]:
                 "action_type":              _val(row, "action_type") or TERMINATION_CODES.get(action),
                 "action_date":              _val(row, "action_date") or "",
                 "total_obligated":          _float(row, "total_dollars_obligated"),
-                # Signed: matches FPDS federal_action_obligation exactly.
+                # Signed: preserves USASpending's federal_action_obligation exactly.
                 # Negative = money pulled back (the normal termination case);
                 # positive = termination mod that added money (settlements /
                 # rescissions / accounting corrections, ~0.5% of rows).
@@ -179,7 +179,10 @@ def build_contracts_json(records: list) -> list:
     out = []
     for c in records:
         fao = c.get("federal_action_obligation")
-        state = (c.get("place_state") or "").strip().upper() or None
+        # Place of performance state. Present rows get a clean 2-letter code;
+        # rows with no value get "Unknown" so they're selectable in the State
+        # filter. Map code still excludes anything !~ /^[A-Z]{2}$/.
+        state = (c.get("place_state") or "").strip().upper() or "Unknown"
         out.append({
             "key":                   c["key"],
             "piid":                  c.get("piid"),
