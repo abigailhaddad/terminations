@@ -102,6 +102,10 @@
                 <h3>Terminations by month</h3>
                 <canvas id="chartMonth"></canvas>
             </div>
+            <div class="chart-card chart-wide" style="margin-bottom: 1rem;">
+                <h3>Terminations by place of performance (state)</h3>
+                <div id="chartMap" style="width: 100%; height: 420px;"></div>
+            </div>
             <div class="charts-grid">
                 <div class="chart-card chart-tall">
                     <h3>Top agencies (by termination count)</h3>
@@ -154,6 +158,7 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script src="shared/shared.js"></script>
     <script>
     window.API_BASE = '';
@@ -247,7 +252,7 @@
         }
     }
 
-    let chartAgency = null, chartReason = null, chartMonth = null;
+    let chartAgency = null, chartReason = null, chartMonth = null, mapInited = false;
 
     function createCharts() {
         chartMonth = new Chart(document.getElementById('chartMonth'), {
@@ -308,7 +313,48 @@
         });
     }
 
+    function updateMap(rows) {
+        const counts = {};
+        for (const r of rows) {
+            const s = (r.place_state || '').toUpperCase();
+            if (!s || s.length !== 2) continue;
+            counts[s] = (counts[s] || 0) + 1;
+        }
+        const locations = Object.keys(counts);
+        const z = locations.map(l => counts[l]);
+
+        const data = [{
+            type: 'choropleth',
+            locationmode: 'USA-states',
+            locations, z,
+            colorscale: [
+                [0,    '#F5EDE0'],
+                [0.2,  '#D4A03C'],
+                [1,    '#2D6A4F'],
+            ],
+            zmin: 0,
+            zauto: true,
+            marker: { line: { color: '#E8DDD0', width: 0.5 } },
+            colorbar: { title: { text: 'Terminations', font: { size: 11 } }, thickness: 12 },
+            hovertemplate: '<b>%{location}</b><br>%{z:,} terminations<extra></extra>',
+        }];
+        const layout = {
+            geo: { scope: 'usa', showlakes: false, bgcolor: 'rgba(0,0,0,0)' },
+            margin: { t: 0, b: 0, l: 0, r: 0 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: "'Source Sans 3', sans-serif", color: '#7A6E62' },
+        };
+        const config = { responsive: true, displayModeBar: false };
+        if (!mapInited) {
+            Plotly.newPlot('chartMap', data, layout, config);
+            mapInited = true;
+        } else {
+            Plotly.react('chartMap', data, layout, config);
+        }
+    }
+
     function updateCharts(rows) {
+        updateMap(rows);
         // By month (YYYY-MM)
         const monthCounts = {};
         for (const r of rows) {
