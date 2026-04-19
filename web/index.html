@@ -126,6 +126,7 @@
                         <th>Agency</th>
                         <th>Sub-Agency</th>
                         <th>Description</th>
+                        <th title="transaction_description on the termination mod — where contracting officers write per-mod notes (e.g., E.O. 14222 / DOGE references).">Mod Note</th>
                         <th class="dt-right">Obligated</th>
                         <th class="dt-right" title="federal_action_obligation on this termination mod. Negative = money pulled back (normal); positive = mod added money (rare: settlements, rescissions).">Mod $ Change</th>
                         <th>NAICS</th>
@@ -165,13 +166,14 @@
         { name: 'Agency',       field: 'department',         filterType: 'multiselect', index: 4 },
         { name: 'Sub-Agency',   field: 'sub_agency',         filterType: 'multiselect', index: 5 },
         { name: 'Description',  field: 'description',        filterType: 'text',        index: 6 },
-        { name: 'Obligated',    field: 'total_obligated',    filterType: 'range',       index: 7, format: 'currency' },
-        { name: 'Mod $ Change', field: 'federal_action_obligation', filterType: 'range',  index: 8, format: 'currency' },
-        { name: 'NAICS',        field: 'naics',              filterType: 'text',        index: 9 },
-        { name: 'PSC',          field: 'psc',                filterType: 'text',        index: 10 },
-        { name: 'Pricing',      field: 'pricing',            filterType: 'multiselect', index: 11 },
-        { name: 'Set-Aside',    field: 'set_aside',          filterType: 'multiselect', index: 12 },
-        { name: 'State',        field: 'place_state',        filterType: 'multiselect', index: 13 },
+        { name: 'Mod Note',     field: 'mod_note',           filterType: 'text',        index: 7 },
+        { name: 'Obligated',    field: 'total_obligated',    filterType: 'range',       index: 8, format: 'currency' },
+        { name: 'Mod $ Change', field: 'federal_action_obligation', filterType: 'range',  index: 9, format: 'currency' },
+        { name: 'NAICS',        field: 'naics',              filterType: 'text',        index: 10 },
+        { name: 'PSC',          field: 'psc',                filterType: 'text',        index: 11 },
+        { name: 'Pricing',      field: 'pricing',            filterType: 'multiselect', index: 12 },
+        { name: 'Set-Aside',    field: 'set_aside',          filterType: 'multiselect', index: 13 },
+        { name: 'State',        field: 'place_state',        filterType: 'multiselect', index: 14 },
     ];
 
     Chart.defaults.font.family = "'Source Sans 3', sans-serif";
@@ -428,6 +430,15 @@
                 { data: 'sub_agency', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
                 {
                     data: 'description',
+                    orderable: false,
+                    render: (d, t) => {
+                        if (t !== 'display') return d || '';
+                        if (!d) return '';
+                        return '<span class="list-cell" tabindex="0" title="' + escapeHtml(d) + '">' + escapeHtml(d) + '</span>';
+                    },
+                },
+                {
+                    data: 'mod_note',
                     orderable: false,
                     render: (d, t) => {
                         if (t !== 'display') return d || '';

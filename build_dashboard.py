@@ -197,6 +197,7 @@ def build_contracts_json(records: list) -> list:
             "awarding_office":       c.get("awarding_office"),
             "funding_office":        c.get("funding_office"),
             "description":           c.get("description"),
+            "mod_note":              c.get("txn_description"),
             "naics":                 c.get("naics_code"),
             "naics_desc":            c.get("naics_description"),
             "psc":                   c.get("psc_code"),
