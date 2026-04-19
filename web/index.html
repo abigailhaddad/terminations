@@ -127,6 +127,9 @@
                     </div>
                 </div>
                 <div id="chartMap" style="width: 100%; height: 420px;"></div>
+                <div id="chartMapEmpty" style="display: none; height: 420px; align-items: center; justify-content: center; color: var(--color-text-muted); font-style: italic; text-align: center;">
+                    No rows with a known state in the current filter.
+                </div>
                 <small class="text-muted" id="mapFootnote" style="display: block; margin-top: 0.5rem;">--</small>
             </div>
             <div class="charts-grid">
@@ -278,6 +281,16 @@
     let chartAgency = null, chartReason = null, chartMonth = null, mapInited = false;
     let mapMetric = 'count';   // 'count' | 'dollars'
 
+    // Every US state (50 + DC) — we plot all of them, zero-filling the ones
+    // with no matching rows so the white-to-green ramp reads consistently.
+    const US_STATES = [
+        'AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI',
+        'ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN',
+        'MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH',
+        'OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA',
+        'WV','WI','WY',
+    ];
+
     function createCharts() {
         chartMonth = new Chart(document.getElementById('chartMonth'), {
             type: 'bar',
@@ -338,12 +351,15 @@
     }
 
     function updateMap(rows) {
-        const byState = {};   // { ST: { count, dollars_signed, dollars_abs } }
+        // Seed every US state with zero so missing states render at z=0
+        // (pure white) rather than going through Plotly's default no-data fill.
+        const byState = {};
+        for (const st of US_STATES) byState[st] = { count: 0, signed: 0, abs: 0 };
+
         let missing = 0;
         for (const r of rows) {
             const s = (r.state || '').toUpperCase();
-            if (!s || s.length !== 2) { missing += 1; continue; }
-            if (!byState[s]) byState[s] = { count: 0, signed: 0, abs: 0 };
+            if (!s || !(s in byState)) { missing += 1; continue; }
             byState[s].count += 1;
             const fao = r.federal_action_obligation;
             if (typeof fao === 'number') {
@@ -353,6 +369,23 @@
         }
         const onMap = rows.length - missing;
         const footnote = document.getElementById('mapFootnote');
+        const mapDiv = document.getElementById('chartMap');
+        const emptyDiv = document.getElementById('chartMapEmpty');
+
+        if (onMap === 0) {
+            // Nothing plottable — hide the choropleth entirely, show a tidy
+            // message in its place. Keeps the card from looking broken.
+            mapDiv.style.display = 'none';
+            emptyDiv.style.display = 'flex';
+            footnote.textContent = rows.length === 0
+                ? 'No terminations match the current filter.'
+                : `${rows.length.toLocaleString()} termination(s) match the filter but none have a known place-of-performance state.`;
+            return;
+        }
+
+        mapDiv.style.display = '';
+        emptyDiv.style.display = 'none';
+
         if (missing === 0) {
             footnote.textContent = `Showing all ${onMap.toLocaleString()} terminations on the map.`;
         } else {
@@ -362,7 +395,7 @@
                 `(foreign, undisclosed, multi-state, or missing from the source data) ` +
                 `and are not plotted. Use the State filter's "Unknown" option to see them.`;
         }
-        const locations = Object.keys(byState);
+        const locations = US_STATES;
 
         let z, colorbarTitle, hovertemplate;
         if (mapMetric === 'dollars') {
@@ -403,11 +436,8 @@
                 scope: 'usa',
                 showlakes: false,
                 bgcolor: 'rgba(0,0,0,0)',
-                // States with no data match z=0 on the scale (pure white) so
-                // 0-count and no-data states look identical.
-                landcolor: '#FFFFFF',
-                subunitcolor: '#C7B8A5',
-                subunitwidth: 0.6,
+                showframe: false,
+                showcoastlines: false,
             },
             margin: { t: 0, b: 0, l: 0, r: 0 },
             paper_bgcolor: 'rgba(0,0,0,0)',
