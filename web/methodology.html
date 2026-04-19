@@ -140,6 +140,22 @@
         </div>
 
         <div class="doc-section">
+            <h2>State</h2>
+            <p>
+                The <strong>State</strong> column is the FPDS
+                <code>primary_place_of_performance_state_code</code> — the 2-letter US code for where
+                the work was performed. No fallback fields are used.
+            </p>
+            <p>
+                About <strong>9.3% of termination rows have no state populated</strong> in FPDS. These
+                are typically foreign place-of-performance, undisclosed recipients (e.g., cases
+                recorded as "DOMESTIC AWARDEES (UNDISCLOSED)"), services spanning multiple states, or
+                simply missing data. Those rows are included in every table/chart count and the
+                Net $ Change stat, but don't appear on the map.
+            </p>
+        </div>
+
+        <div class="doc-section">
             <h2>Caveats</h2>
             <ul>
                 <li>

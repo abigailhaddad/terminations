@@ -47,6 +47,22 @@
         .chart-card canvas { max-height: 220px; }
         .chart-card.chart-tall canvas { max-height: 320px; }
         .chart-card.chart-wide canvas { max-height: 260px; }
+        .map-metric-btn {
+            background: transparent;
+            border: 1px solid var(--color-border);
+            color: var(--color-text-muted);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-family: 'Source Sans 3', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .map-metric-btn.active {
+            background: var(--color-accent);
+            color: #fff;
+            border-color: var(--color-accent);
+        }
     </style>
 </head>
 <body>
@@ -103,8 +119,15 @@
                 <canvas id="chartMonth"></canvas>
             </div>
             <div class="chart-card chart-wide" style="margin-bottom: 1rem;">
-                <h3>Terminations by place of performance (state)</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <h3 style="margin: 0;">Terminations by place of performance (state)</h3>
+                    <div id="mapMetricToggle" role="tablist" style="display: inline-flex; gap: 0.25rem;">
+                        <button type="button" class="map-metric-btn active" data-metric="count">Count</button>
+                        <button type="button" class="map-metric-btn" data-metric="dollars">$ volume</button>
+                    </div>
+                </div>
                 <div id="chartMap" style="width: 100%; height: 420px;"></div>
+                <small class="text-muted" id="mapFootnote" style="display: block; margin-top: 0.5rem;">--</small>
             </div>
             <div class="charts-grid">
                 <div class="chart-card chart-tall">
@@ -137,7 +160,7 @@
                         <th>PSC</th>
                         <th>Pricing</th>
                         <th>Set-Aside</th>
-                        <th>State</th>
+                        <th title="Primary place of performance (2-letter US code). ~9% of rows have no state in FPDS (foreign / undisclosed / multi-state); those are still counted in totals but don't appear on the map.">State</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -178,7 +201,7 @@
         { name: 'PSC',          field: 'psc',                filterType: 'text',        index: 11 },
         { name: 'Pricing',      field: 'pricing',            filterType: 'multiselect', index: 12 },
         { name: 'Set-Aside',    field: 'set_aside',          filterType: 'multiselect', index: 13 },
-        { name: 'State',        field: 'place_state',        filterType: 'multiselect', index: 14 },
+        { name: 'State',        field: 'state',        filterType: 'multiselect', index: 14 },
     ];
 
     Chart.defaults.font.family = "'Source Sans 3', sans-serif";
@@ -253,6 +276,7 @@
     }
 
     let chartAgency = null, chartReason = null, chartMonth = null, mapInited = false;
+    let mapMetric = 'count';   // 'count' | 'dollars'
 
     function createCharts() {
         chartMonth = new Chart(document.getElementById('chartMonth'), {
@@ -314,19 +338,50 @@
     }
 
     function updateMap(rows) {
-        const counts = {};
+        const byState = {};   // { ST: { count, dollars_signed, dollars_abs } }
+        let missing = 0;
         for (const r of rows) {
-            const s = (r.place_state || '').toUpperCase();
-            if (!s || s.length !== 2) continue;
-            counts[s] = (counts[s] || 0) + 1;
+            const s = (r.state || '').toUpperCase();
+            if (!s || s.length !== 2) { missing += 1; continue; }
+            if (!byState[s]) byState[s] = { count: 0, signed: 0, abs: 0 };
+            byState[s].count += 1;
+            const fao = r.federal_action_obligation;
+            if (typeof fao === 'number') {
+                byState[s].signed += fao;
+                byState[s].abs += Math.abs(fao);
+            }
         }
-        const locations = Object.keys(counts);
-        const z = locations.map(l => counts[l]);
+        const onMap = rows.length - missing;
+        document.getElementById('mapFootnote').textContent =
+            `Showing ${onMap.toLocaleString()} of ${rows.length.toLocaleString()} terminations. ` +
+            `${missing.toLocaleString()} have no primary place-of-performance state in FPDS ` +
+            `(foreign, undisclosed, multi-state, or missing) and are not plotted.`;
+        const locations = Object.keys(byState);
+
+        let z, colorbarTitle, hovertemplate;
+        if (mapMetric === 'dollars') {
+            // Absolute-value dollar volume moved by termination mods.
+            z = locations.map(l => byState[l].abs);
+            colorbarTitle = '$ volume';
+            hovertemplate =
+                '<b>%{location}</b><br>' +
+                '$ volume: $%{z:,.0f}<br>' +
+                'Net change: $%{customdata[0]:,.0f}<br>' +
+                '%{customdata[1]:,} terminations<extra></extra>';
+        } else {
+            z = locations.map(l => byState[l].count);
+            colorbarTitle = 'Terminations';
+            hovertemplate =
+                '<b>%{location}</b><br>' +
+                '%{z:,} terminations<br>' +
+                'Net $ change: $%{customdata[0]:,.0f}<extra></extra>';
+        }
+        const customdata = locations.map(l => [byState[l].signed, byState[l].count]);
 
         const data = [{
             type: 'choropleth',
             locationmode: 'USA-states',
-            locations, z,
+            locations, z, customdata,
             colorscale: [
                 [0,    '#F5EDE0'],
                 [0.2,  '#D4A03C'],
@@ -335,8 +390,8 @@
             zmin: 0,
             zauto: true,
             marker: { line: { color: '#E8DDD0', width: 0.5 } },
-            colorbar: { title: { text: 'Terminations', font: { size: 11 } }, thickness: 12 },
-            hovertemplate: '<b>%{location}</b><br>%{z:,} terminations<extra></extra>',
+            colorbar: { title: { text: colorbarTitle, font: { size: 11 } }, thickness: 12 },
+            hovertemplate,
         }];
         const layout = {
             geo: { scope: 'usa', showlakes: false, bgcolor: 'rgba(0,0,0,0)' },
@@ -351,6 +406,17 @@
         } else {
             Plotly.react('chartMap', data, layout, config);
         }
+    }
+
+    function wireMapToggle() {
+        document.getElementById('mapMetricToggle').addEventListener('click', (e) => {
+            const btn = e.target.closest('.map-metric-btn');
+            if (!btn || btn.classList.contains('active')) return;
+            document.querySelectorAll('.map-metric-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            mapMetric = btn.dataset.metric;
+            if (filterManager) updateMap(filterManager.getFilteredData());
+        });
     }
 
     function updateCharts(rows) {
@@ -498,7 +564,7 @@
                 { data: 'psc', defaultContent: '' },
                 { data: 'pricing', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
                 { data: 'set_aside', defaultContent: '', render: (d, t) => t === 'display' ? escapeHtml(d || '') : (d || '') },
-                { data: 'place_state', defaultContent: '' },
+                { data: 'state', defaultContent: '' },
             ],
             pageLength: 25,
             lengthMenu: [10, 25, 50, 100, 250],
@@ -528,6 +594,7 @@
         });
         toolbarEl.appendChild(csvBtn);
 
+        wireMapToggle();
         const initial = filterManager.getFilteredData();
         updateStats(initial);
         updateCharts(initial);

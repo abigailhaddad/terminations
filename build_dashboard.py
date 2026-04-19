@@ -179,6 +179,7 @@ def build_contracts_json(records: list) -> list:
     out = []
     for c in records:
         fao = c.get("federal_action_obligation")
+        state = (c.get("place_state") or "").strip().upper() or None
         out.append({
             "key":                   c["key"],
             "piid":                  c.get("piid"),
@@ -206,7 +207,7 @@ def build_contracts_json(records: list) -> list:
             "set_aside":             c.get("set_aside"),
             "pop_start":             (c.get("pop_start") or "")[:10] or None,
             "pop_end":               (c.get("pop_end") or "")[:10] or None,
-            "place_state":           c.get("place_state"),
+            "state":                 state,
             "link":                  c.get("usaspending_link"),
         })
 
