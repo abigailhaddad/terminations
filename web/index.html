@@ -389,18 +389,26 @@
             locationmode: 'USA-states',
             locations, z, customdata,
             colorscale: [
-                [0,    '#F5EDE0'],
-                [0.2,  '#D4A03C'],
-                [1,    '#2D6A4F'],
+                [0, '#FFFFFF'],
+                [1, '#2D6A4F'],
             ],
             zmin: 0,
             zauto: true,
-            marker: { line: { color: '#E8DDD0', width: 0.5 } },
+            marker: { line: { color: '#C7B8A5', width: 0.6 } },
             colorbar: { title: { text: colorbarTitle, font: { size: 11 } }, thickness: 12 },
             hovertemplate,
         }];
         const layout = {
-            geo: { scope: 'usa', showlakes: false, bgcolor: 'rgba(0,0,0,0)' },
+            geo: {
+                scope: 'usa',
+                showlakes: false,
+                bgcolor: 'rgba(0,0,0,0)',
+                // States with no data match z=0 on the scale (pure white) so
+                // 0-count and no-data states look identical.
+                landcolor: '#FFFFFF',
+                subunitcolor: '#C7B8A5',
+                subunitwidth: 0.6,
+            },
             margin: { t: 0, b: 0, l: 0, r: 0 },
             paper_bgcolor: 'rgba(0,0,0,0)',
             font: { family: "'Source Sans 3', sans-serif", color: '#7A6E62' },
