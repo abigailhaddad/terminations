@@ -177,6 +177,12 @@
                     covers procurement contracts.
                 </li>
                 <li>
+                    <strong>GSA Multiple Award Schedule (MAS) closures are not captured.</strong>
+                    When a vendor is removed from a MAS schedule or a schedule order is closed,
+                    the modification typically does not carry a termination action code (E/F/X),
+                    so it is invisible to this dashboard. See the section below for more detail.
+                </li>
+                <li>
                     <strong>Subawards are not captured.</strong> These archives contain only prime-award
                     transactions &mdash; the contract between a federal agency and its direct vendor.
                     Subawards (prime contractor &rarr; subcontractor) live in a separate USASpending
@@ -188,6 +194,30 @@
                     event.
                 </li>
             </ul>
+        </div>
+
+        <div class="doc-section">
+            <h2>GSA MAS schedule closures: a known gap</h2>
+            <p>
+                GSA Multiple Award Schedule (MAS) contracts are Indefinite Delivery Vehicles (IDVs) —
+                umbrella vehicles under which agencies place individual task and delivery orders.
+                When a vendor is removed from a MAS schedule or a schedule order is administratively
+                closed, the relevant contract modification does not carry one of the three standard
+                termination codes (E, F, or X). It typically appears as an ordinary modification
+                with a different action code and a descriptive field indicating closure. This dashboard's
+                filter never sees it.
+            </p>
+            <p>
+                This gap is most significant in the GSA products world, where MAS schedule activity
+                is dense and closures are common. The net effect is that this dashboard undercounts
+                terminations for vendors whose work flows primarily through MAS vehicles.
+            </p>
+            <p>
+                <a href="https://github.com/timmytwoplates/usa_spending_grabber">usa_spending_grabber</a>
+                is a related tool that fetches full transaction histories for specific award IDs
+                from the USASpending API, allowing manual inspection of modification descriptions
+                to identify MAS closures.
+            </p>
         </div>
 
         <footer class="site-footer">
