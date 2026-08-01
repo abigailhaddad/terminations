@@ -1,15 +1,15 @@
 {
-  "total_terminations": 67641,
-  "unique_contracts": 65223,
+  "total_terminations": 67702,
+  "unique_contracts": 65271,
   "by_reason": {
-    "Terminate for Convenience (complete or partial)": 66801,
-    "Terminate for Default (complete or partial)": 288,
-    "Terminate for Cause": 552
+    "Terminate for Default (complete or partial)": 293,
+    "Terminate for Convenience (complete or partial)": 66852,
+    "Terminate for Cause": 557
   },
-  "net_dollar_change": -6679294226,
-  "unique_contractors": 9449,
+  "net_dollar_change": -6704940327,
+  "unique_contractors": 9468,
   "unique_agencies": 51,
-  "built_at": "2026-07-01T10:33Z",
-  "latest_termination_date": "2026-06-04",
-  "as_of": "2026-07-01"
+  "built_at": "2026-08-01T10:41Z",
+  "latest_termination_date": "2026-07-02",
+  "as_of": "2026-08-01"
 }
