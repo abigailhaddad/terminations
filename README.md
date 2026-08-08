@@ -1,6 +1,6 @@
 # Federal Contract Terminations
 
-**Live site:** https://terminations.vercel.app
+**Live site:** https://terminations.abigailhaddad.com
 
 Every federal contract termination modification since FY2025 — with the reason
 (Default, Convenience, or Cause), the deobligated amount, the agency that ended
