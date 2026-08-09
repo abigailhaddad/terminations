@@ -51,6 +51,7 @@ and the date of the most recent termination in the header.
 pip install -r requirements.txt
 python3 fetch_awards.py              # downloads bulk archives, filters to terminations
 python3 build_dashboard.py           # builds the dashboard JSON files
+python3 run_checks.py                # regression checks on the built site
 cd web && python3 -m http.server     # view locally at http://localhost:8000
 ```
 

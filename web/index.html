@@ -591,13 +591,67 @@
 
     const DATA_BASE = window.DATA_BASE || 'data';
 
+    // terminations.json is columnar and dictionary-encoded by
+    // build_dashboard.py: one array per field holding integer indices into a
+    // shared value list, -1 for null. That is what keeps the file at ~10 MiB
+    // instead of the 91 MB the plain array-of-objects form cost -- Cloudflare
+    // Pages refuses to serve any file over 25 MiB.
+    //
+    // `piid` and `link` are not in the payload at all; both fall out of `key`
+    // (contract_award_unique_key), so we rebuild them here. Everything
+    // downstream -- DataTables, the filter manager, the charts, the CSV
+    // download -- keeps seeing plain row objects and needs no changes.
+    const PAYLOAD_VERSION = 2;
+
+    function decodeTerminations(payload) {
+        if (!payload || payload.v !== PAYLOAD_VERSION) {
+            throw new Error(
+                'terminations.json is version ' + (payload && payload.v) +
+                ', expected ' + PAYLOAD_VERSION + ' -- rebuild it with build_dashboard.py.'
+            );
+        }
+        const cols = payload.cols;
+        const dicts = payload.dicts;
+        const text = dicts._text;
+        const n = payload.n;
+        const rows = new Array(n);
+
+        for (let i = 0; i < n; i++) {
+            const key = cols.key[i];
+            const parts = key ? key.split('_') : [];
+            const desc = cols.description[i];
+            const note = cols.mod_note[i];
+            rows[i] = {
+                key: key,
+                piid: parts.length > 2 ? parts[2] : null,
+                link: key ? 'https://www.usaspending.gov/award/' + key + '/' : null,
+                termination_reason: cols.termination_reason[i] < 0 ? null : dicts.termination_reason[cols.termination_reason[i]],
+                termination_date:   cols.termination_date[i]   < 0 ? null : dicts.termination_date[cols.termination_date[i]],
+                contractor:         cols.contractor[i]         < 0 ? null : dicts.contractor[cols.contractor[i]],
+                department:         cols.department[i]         < 0 ? null : dicts.department[cols.department[i]],
+                sub_agency:         cols.sub_agency[i]         < 0 ? null : dicts.sub_agency[cols.sub_agency[i]],
+                naics:              cols.naics[i]              < 0 ? null : dicts.naics[cols.naics[i]],
+                psc:                cols.psc[i]                < 0 ? null : dicts.psc[cols.psc[i]],
+                pricing:            cols.pricing[i]            < 0 ? null : dicts.pricing[cols.pricing[i]],
+                set_aside:          cols.set_aside[i]          < 0 ? null : dicts.set_aside[cols.set_aside[i]],
+                state:              cols.state[i]              < 0 ? null : dicts.state[cols.state[i]],
+                description: desc < 0 ? null : text[desc],
+                mod_note:    note < 0 ? null : text[note],
+                total_obligated:           cols.total_obligated[i],
+                federal_action_obligation: cols.federal_action_obligation[i],
+            };
+        }
+        return rows;
+    }
+
     async function init() {
         createCharts();
 
-        const [summary, records] = await Promise.all([
+        const [summary, payload] = await Promise.all([
             fetch(DATA_BASE + '/summary.json').then(r => r.json()),
             fetch(DATA_BASE + '/terminations.json').then(r => r.json()),
         ]);
+        const records = decodeTerminations(payload);
 
         allRecords = records;
         const meta = {

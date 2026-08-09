@@ -120,6 +120,11 @@ jobs:
       - name: Build dashboard (hydrates from R2 if needed)
         run: python build_dashboard.py
 
+      # Blocks the commit if the build produced something the host will
+      # reject -- above all a file over Cloudflare Pages' 25 MiB limit.
+      - name: Check built site
+        run: python run_checks.py
+
       - name: Commit dashboard JSONs
         id: commit
         run: |
@@ -134,6 +139,16 @@ jobs:
             git push
             echo "committed=true" >> $GITHUB_OUTPUT
           fi
+
+      # Vercel watched the prod branch and built on push, so publishing needed
+      # no step of its own. Cloudflare Pages is a direct upload, so it does.
+      # Runs whether or not the data changed: web/ holds the page itself, and
+      # deploying only on a data change would strand edits to the HTML.
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages deploy web --project-name=terminations --branch=main --commit-dirty=true
 
   promote:
     runs-on: ubuntu-latest

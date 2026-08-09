@@ -34,6 +34,19 @@ with open(CONFIG_PATH) as _f:
 TERMINATION_CODES = dict(CONFIG["fetch"]["termination_codes"])   # {code: label}
 PRICING_LABELS    = dict(CONFIG["labels"]["pricing_types"])
 
+# Cloudflare Pages hard-rejects any single file over 25 MiB. Nothing under
+# web/ may exceed this or the whole deploy fails.
+MAX_WEB_FILE_BYTES = 25 * 1024 * 1024   # 26,214,400
+
+
+def check_web_file_sizes(web_dir: Path = Path("web")) -> list[tuple[Path, int]]:
+    """Return [(path, size)] for files over the Cloudflare Pages limit."""
+    return sorted(
+        (p, p.stat().st_size)
+        for p in web_dir.rglob("*")
+        if p.is_file() and p.stat().st_size > MAX_WEB_FILE_BYTES
+    )
+
 
 def _val(row: dict, key: str) -> str | None:
     v = row.get(key, "")
@@ -219,6 +232,132 @@ def build_contracts_json(records: list) -> list:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Payload encoding
+#
+# Cloudflare Pages refuses to serve any single file over 25 MiB. The naive
+# encoding of these records -- a JSON array of 28-field objects, pretty-printed
+# with indent=2 -- was 91 MB and could not be deployed at all.
+#
+# Three things were making it big, in order of size:
+#   1. Twelve fields the dashboard never reads (awarding_office, funding_office,
+#      naics_desc, psc_desc, contractor_parent, parent_piid, pop_start, pop_end,
+#      mod_number, termination_code, ceiling) plus `link`, which is just
+#      "https://www.usaspending.gov/award/{key}/" spelled out on every row.
+#   2. Field names and JSON punctuation repeated once per record.
+#   3. Low-cardinality strings repeated verbatim: 51 department names across
+#      67k rows, 3 termination reasons, 14 pricing types, and so on. Also
+#      `description` and `mod_note`, which are byte-identical on 77% of rows.
+#
+# So the payload is columnar and dictionary-encoded: one array per field
+# holding integer indices into a shared value list. `description` and
+# `mod_note` index into one combined string pool, which collapses the 77%
+# overlap. `piid` and `link` are not stored at all -- the reader derives both
+# from `key`. Result: 10.4 MiB, decoded back into plain row objects by
+# decodeTerminations() in web/index.html.
+# ---------------------------------------------------------------------------
+
+PAYLOAD_VERSION = 2
+
+# Low-cardinality strings -> index into dicts[field].
+DICT_FIELDS = [
+    "termination_reason", "termination_date", "contractor", "department",
+    "sub_agency", "naics", "psc", "pricing", "set_aside", "state",
+]
+# Free text -> index into the shared dicts["_text"] pool.
+TEXT_FIELDS = ["description", "mod_note"]
+# Numbers, stored as-is (null preserved).
+NUM_FIELDS = ["total_obligated", "federal_action_obligation"]
+# Stored verbatim; the reader derives `piid` and `link` from it.
+RAW_FIELDS = ["key"]
+
+# Fields the reader materializes. Kept here so run_checks.py can assert the
+# dashboard never renders a column the payload does not carry.
+DECODED_FIELDS = sorted(
+    DICT_FIELDS + TEXT_FIELDS + NUM_FIELDS + RAW_FIELDS + ["piid", "link"]
+)
+
+USASPENDING_AWARD_URL = "https://www.usaspending.gov/award/{key}/"
+
+
+def piid_from_key(key: str | None) -> str | None:
+    """USASpending's contract_award_unique_key is CONT_{AWD,IDV}_{piid}_{...}.
+
+    Verified against all 67,702 rows in the FY2025-26 payload: the third
+    underscore-delimited segment equals award_id_piid every time.
+    """
+    if not key:
+        return None
+    parts = key.split("_")
+    return parts[2] if len(parts) > 2 else None
+
+
+def encode_terminations(records: list) -> dict:
+    """Columnar + dictionary encoding of the dashboard rows."""
+    n = len(records)
+    dicts: dict[str, list] = {}
+    cols: dict[str, list] = {}
+
+    for field in DICT_FIELDS:
+        values = sorted({r[field] for r in records if r.get(field) is not None})
+        index = {v: i for i, v in enumerate(values)}
+        dicts[field] = values
+        cols[field] = [
+            index[r[field]] if r.get(field) is not None else -1 for r in records
+        ]
+
+    pool = sorted({r[f] for r in records for f in TEXT_FIELDS if r.get(f)})
+    pool_index = {v: i for i, v in enumerate(pool)}
+    dicts["_text"] = pool
+    for field in TEXT_FIELDS:
+        cols[field] = [
+            pool_index[r[field]] if r.get(field) else -1 for r in records
+        ]
+
+    for field in NUM_FIELDS:
+        cols[field] = [r.get(field) for r in records]
+
+    for field in RAW_FIELDS:
+        cols[field] = [r.get(field) for r in records]
+
+    # A row whose piid does not fall out of its key would silently render a
+    # blank PIID cell in the browser, so fail the build instead.
+    bad = [r["key"] for r in records if piid_from_key(r.get("key")) != r.get("piid")]
+    if bad:
+        raise ValueError(
+            f"{len(bad)} row(s) have a piid not derivable from key, "
+            f"e.g. {bad[0]!r}. Update piid_from_key() and the reader."
+        )
+
+    return {"v": PAYLOAD_VERSION, "n": n, "dicts": dicts, "cols": cols}
+
+
+def decode_terminations(payload: dict) -> list[dict]:
+    """Python mirror of decodeTerminations() in web/index.html. Used by tests."""
+    if payload.get("v") != PAYLOAD_VERSION:
+        raise ValueError(f"unexpected payload version {payload.get('v')!r}")
+    dicts, cols, n = payload["dicts"], payload["cols"], payload["n"]
+    text = dicts["_text"]
+    rows = []
+    for i in range(n):
+        key = cols["key"][i]
+        row = {
+            "key": key,
+            "piid": piid_from_key(key),
+            "link": USASPENDING_AWARD_URL.format(key=key) if key else None,
+        }
+        for field in DICT_FIELDS:
+            j = cols[field][i]
+            row[field] = dicts[field][j] if j >= 0 else None
+        for field in TEXT_FIELDS:
+            j = cols[field][i]
+            row[field] = text[j] if j >= 0 else None
+        for field in NUM_FIELDS:
+            row[field] = cols[field][i]
+        rows.append(row)
+    return rows
+
+
 def build_summary(records: list) -> dict:
     by_reason = defaultdict(int)
     net_change = 0.0
@@ -268,7 +407,9 @@ def build_filter_options(records: list) -> dict:
         "sub_agencies":         unique_sorted("sub_agency"),
         "pricing_types":        unique_sorted("pricing"),
         "set_asides":           unique_sorted("set_aside"),
-        "states":               unique_sorted("place_state"),
+        # build_contracts_json() emits this as "state", not "place_state" --
+        # the old name silently produced an empty list.
+        "states":               unique_sorted("state"),
         "naics_2digit":         naics_2,
     }
 
@@ -303,17 +444,34 @@ def main():
     filters = build_filter_options(records)
     config_mirror = build_config_mirror()
 
+    payload = encode_terminations(records)
+
+    # terminations.json is written compact -- it is machine-read only, and
+    # indent=2 alone cost 12 MB against a 25 MiB hosting limit. The small
+    # sidecars stay pretty-printed so they remain diffable in git.
     outputs = {
-        "terminations.json": records,
-        "summary.json":      summary,
-        "filters.json":      filters,
-        "config.json":       config_mirror,
+        "terminations.json": (payload, True),
+        "summary.json":      (summary, False),
+        "filters.json":      (filters, False),
+        "config.json":       (config_mirror, False),
     }
 
-    for fname, data in outputs.items():
+    for fname, (data, compact) in outputs.items():
         path = WEB_DATA_DIR / fname
-        path.write_text(json.dumps(data, indent=2, default=str))
-        print(f"  Wrote {path}")
+        if compact:
+            text = json.dumps(data, separators=(",", ":"), default=str)
+        else:
+            text = json.dumps(data, indent=2, default=str)
+        path.write_text(text)
+        print(f"  Wrote {path} ({len(text.encode()):,} bytes)")
+
+    oversized = check_web_file_sizes()
+    if oversized:
+        listing = ", ".join(f"{p} ({s:,} bytes)" for p, s in oversized)
+        raise SystemExit(
+            f"Refusing to finish: {listing} exceeds the Cloudflare Pages "
+            f"{MAX_WEB_FILE_BYTES:,}-byte per-file limit."
+        )
 
     print("\nDone. Commit web/data/ to deploy.")
 
