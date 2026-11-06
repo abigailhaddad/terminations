@@ -9,3 +9,5 @@ venv/
 .vercel
 .playwright-mcp/
 .wrangler/
+build/
+.pytest_cache/

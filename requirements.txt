@@ -1,3 +1,5 @@
 requests
 pyyaml
 boto3
+pyarrow
+huggingface_hub

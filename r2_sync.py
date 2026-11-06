@@ -12,12 +12,14 @@ from pathlib import Path
 import boto3
 from botocore.config import Config
 
+import settings
+
 ACCOUNT_ID = os.environ["CF_R2_ACCOUNT_ID"]
 BUCKET     = os.environ["CF_R2_BUCKET"]
 ACCESS_KEY = os.environ["CF_R2_ACCESS_KEY_ID"]
 SECRET_KEY = os.environ["CF_R2_SECRET_ACCESS_KEY"]
 
-DEFAULT_PREFIX = "terminations/"
+DEFAULT_PREFIX = settings.R2_PREFIX   # config.yaml site.r2_prefix, or CF_R2_PREFIX
 DEFAULT_SUFFIXES = (".csv", ".not_found")
 
 

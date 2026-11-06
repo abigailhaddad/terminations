@@ -1,9 +1,9 @@
 """
 build_dashboard.py -- Aggregate termination data and build dashboard JSONs.
 
-Streams the termination rows (one row per termination modification) and
-reduces to one record per contract_award_unique_key, keeping the most severe
-termination action (Default/Cause > Convenience). Emits JSON to web/data/.
+Streams the termination rows and keeps one record per termination
+modification transaction. A contract with several termination mods yields
+several records, and nothing is merged or ranked. Emits JSON to web/data/.
 
 Run:
     python3 build_dashboard.py
@@ -127,6 +127,10 @@ def stream_and_aggregate() -> list[dict]:
             fao = _float(row, "federal_action_obligation")
             records.append({
                 "key":                      key,
+                # One row per transaction. (key, mod, date, code) is NOT unique:
+                # five pairs in the FY2025 DoD file repeat it with different amounts.
+                "transaction_key":          _val(row, "contract_transaction_unique_key"),
+                "transaction_number":       _val(row, "transaction_number"),
                 "piid":                     _val(row, "award_id_piid"),
                 "parent_piid":              _val(row, "parent_award_id_piid"),
                 "modification_number":      _val(row, "modification_number"),
