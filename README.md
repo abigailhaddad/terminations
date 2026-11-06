@@ -1,7 +1,7 @@
 # Federal Contract Terminations
 
 **Live site:** https://terminations.abigailhaddad.com
-**Dataset:** https://huggingface.co/datasets/abigailhaddad/contract-terminations (once first published; see HANDOFF.md)
+**Dataset:** https://huggingface.co/datasets/abigailhaddad/contract-terminations
 **Taking this over?** Read [HANDOFF.md](HANDOFF.md).
 
 Every federal contract termination modification since FY2025 — with the reason
