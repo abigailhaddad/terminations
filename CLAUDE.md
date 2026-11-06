@@ -105,6 +105,13 @@ Deliberately **not** shipped, because nothing in `web/` reads them:
 `decodeTerminations()` in `web/index.html` — `run_checks.py` fails the build if
 the table renders a field the payload does not carry.
 
+## Other files
+
+- `settings.py`: the owner-specific names (repo, site, Pages project, Hugging Face dataset, R2 prefix), from `config.yaml` `site:` with environment overrides.
+- `health.py`: compares each build with the last commit's `summary.json`. A drop of more than 0.5% or a latest date that moves backwards fails the build (`run_checks.py` calls it).
+- `publish_hf.py`: builds the Hugging Face table from the checkpoint CSVs and checks it against them. Dry run by default; `--upload` makes one commit. The workflow's `publish_hf` job runs it only when the `HF_TOKEN` secret exists.
+- `HANDOFF.md`: operator guide.
+
 ## Checks
 
 `python3 run_checks.py` -- runs against the built `web/`, wired into the

@@ -176,6 +176,20 @@ def _filters():
     return ", ".join(f"{k}={len(v)}" for k, v in filters.items())
 
 
+@check("totals did not fall, and the latest date did not move back, since the last commit")
+def _against_previous():
+    import health
+    summary = json.loads((DATA / "summary.json").read_text())
+    previous = health.previous_summary()
+    if previous is None:
+        return "no earlier commit to compare with (skipped)"
+    problems = health.build_problems(summary, previous)
+    if problems:
+        raise AssertionError("; ".join(problems))
+    return (f"{previous['total_terminations']:,} -> {summary['total_terminations']:,}, "
+            f"latest {summary.get('latest_termination_date')}")
+
+
 def main() -> int:
     for line in passes:
         print(f"  PASS  {line}")

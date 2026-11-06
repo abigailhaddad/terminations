@@ -148,7 +148,50 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4 pages deploy web --project-name=terminations --branch=main --commit-dirty=true
+        run: npx --yes wrangler@4 pages deploy web --project-name=${{ vars.CLOUDFLARE_PROJECT || 'terminations' }} --branch=main --commit-dirty=true
+
+  # Publishes the table to Hugging Face. A separate job on purpose: if Hugging
+  # Face is down, the site and the prod branch above still update.
+  # Does nothing until the repo secret HF_TOKEN exists (HANDOFF.md says how).
+  publish_hf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [build]
+    if: ${{ always() && needs.build.result == 'success' }}
+
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      CF_R2_ACCOUNT_ID: ${{ secrets.CF_R2_ACCOUNT_ID }}
+      CF_R2_BUCKET: ${{ secrets.CF_R2_BUCKET }}
+      CF_R2_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+      CF_R2_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Skip when HF_TOKEN is not set
+        if: ${{ env.HF_TOKEN == '' }}
+        run: echo "HF_TOKEN is not set, so nothing is published to Hugging Face."
+
+      - uses: actions/checkout@v4
+        if: ${{ env.HF_TOKEN != '' }}
+        with:
+          ref: main   # the commit the build job just pushed, with its summary.json
+
+      - uses: actions/setup-python@v5
+        if: ${{ env.HF_TOKEN != '' }}
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        if: ${{ env.HF_TOKEN != '' }}
+        run: pip install -r requirements.txt
+
+      - name: Download checkpoints from R2
+        if: ${{ env.HF_TOKEN != '' }}
+        run: python r2_sync.py download --dir data/bulk_checkpoints
+
+      - name: Build, verify and upload the dataset (one commit)
+        if: ${{ env.HF_TOKEN != '' }}
+        run: python publish_hf.py --check-summary --upload
 
   promote:
     runs-on: ubuntu-latest

@@ -1,5 +1,14 @@
 # Terminations dashboard — pipeline configuration.
-# Read by fetch_awards.py and build_dashboard.py.
+# Read by fetch_awards.py, build_dashboard.py and settings.py.
+
+site:
+  # Everything that names the current owner. Each can be overridden by an
+  # environment variable (see settings.py). A new owner edits this block.
+  github_repo: abigailhaddad/terminations
+  site_url: https://terminations.abigailhaddad.com
+  pages_project: terminations          # Cloudflare Pages project name
+  hf_dataset: abigailhaddad/contract-terminations
+  r2_prefix: terminations/             # folder inside the R2 bucket
 
 fetch:
   # Fiscal years to pull. USASpending bulk archives go back to FY2017.

@@ -46,8 +46,18 @@ DEFAULT_FY        = list(CONFIG["fetch"]["fiscal_years"])
 TERMINATION_CODES = set(CONFIG["fetch"]["termination_codes"].keys())
 
 
-def _get_latest_datestamp(fallback: str = "20260306") -> str:
-    """Scrape the archive index page for the most recent bulk datestamp."""
+STALE_FALLBACK_DATESTAMP = "20260306"
+DATESTAMP = None  # set in main(); detecting it needs the network
+
+
+def _get_latest_datestamp() -> str:
+    """Scrape the archive index page for the most recent bulk datestamp.
+
+    If that fails the run stops. The old behavior was to fall back to a fixed
+    date, which makes every download a 404, and a 404 writes a `.not_found`
+    marker that later runs treat as "done". Set ALLOW_STALE_DATESTAMP=1 to use
+    the fixed fallback anyway.
+    """
     try:
         r = requests.get(ARCHIVE_BASE, timeout=15)
         r.raise_for_status()
@@ -56,12 +66,19 @@ def _get_latest_datestamp(fallback: str = "20260306") -> str:
             latest = max(dates)
             print(f"Auto-detected datestamp: {latest}")
             return latest
+        reason = "no Contracts_Full_<date>.zip links on the index page"
     except Exception as exc:
-        print(f"Could not auto-detect datestamp ({exc}), using fallback {fallback}")
-    return fallback
+        reason = str(exc)
+    if os.environ.get("ALLOW_STALE_DATESTAMP") == "1":
+        print(f"Could not auto-detect datestamp ({reason}), using fallback {STALE_FALLBACK_DATESTAMP}")
+        return STALE_FALLBACK_DATESTAMP
+    sys.exit(f"Could not auto-detect the archive datestamp ({reason}). Stopping so no "
+             f".not_found markers are written. ALLOW_STALE_DATESTAMP=1 overrides.")
 
 
-DATESTAMP = _get_latest_datestamp()
+def is_termination_row(row: dict) -> bool:
+    """True when the row's action_type_code is one of the termination codes."""
+    return (row.get("action_type_code") or "").strip().upper() in TERMINATION_CODES
 
 
 def get_agencies() -> dict[str, str]:
@@ -143,6 +160,9 @@ def main() -> None:
 
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
+    global DATESTAMP
+    DATESTAMP = _get_latest_datestamp()
+
     agencies = get_agencies()
     if args.agencies:
         agencies = {c: agencies.get(c, f"Agency {c}") for c in args.agencies}
@@ -170,6 +190,7 @@ def main() -> None:
     print(f"Termination codes kept: {sorted(TERMINATION_CODES)}\n")
 
     ip_blocked = False
+    failed: list[tuple[int, str]] = []   # (fy, agency code) that did not finish
     total_kept = 0
     total_scanned = 0
     run_results: list[tuple[int, str, str, int, int]] = []  # (fy, code, name, scanned, kept)
@@ -197,6 +218,7 @@ def main() -> None:
                 break
             if resp is FAILED:
                 print("FAILED -- will retry next run")
+                failed.append((fy, code))
                 continue
             if resp is NOT_FOUND:
                 print("404")
@@ -234,8 +256,7 @@ def main() -> None:
                                     if rows_scanned % 500_000 == 0:
                                         print(f"{rows_scanned//1000}k...", end=" ", flush=True)
 
-                                    action = (row.get("action_type_code") or "").strip().upper()
-                                    if action not in TERMINATION_CODES:
+                                    if not is_termination_row(row):
                                         continue
 
                                     writer.writerow(row)
@@ -246,6 +267,7 @@ def main() -> None:
                 if cp.exists():
                     cp.unlink()
                 os.unlink(zip_path)
+                failed.append((fy, code))
                 continue
 
             os.unlink(zip_path)
@@ -258,6 +280,7 @@ def main() -> None:
     print(f"\n{'='*60}")
     print("Merging checkpoints...")
 
+    unreadable: list[str] = []   # checkpoint files that could not be read
     all_fieldnames: list[str] = []
     seen: set[str] = set()
     checkpoint_files = sorted(CHECKPOINT_DIR.glob("FY*.csv"))
@@ -271,11 +294,12 @@ def main() -> None:
                             all_fieldnames.append(col)
                             seen.add(col)
             except Exception:
-                pass
+                unreadable.append(cp_file.name)
 
     if not all_fieldnames:
-        print("No terminations found yet.")
-        return
+        # Real data always has terminations. Returning quietly here left the
+        # status file unwritten and the workflow green.
+        sys.exit("No terminations found in any checkpoint -- stopping.")
 
     OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     total_rows = 0
@@ -292,17 +316,24 @@ def main() -> None:
                         writer.writerow(row)
                         total_rows += 1
             except Exception:
-                pass
+                if cp_file.name not in unreadable:
+                    unreadable.append(cp_file.name)
 
     num_files = sum(1 for cp_file in checkpoint_files if cp_file.stat().st_size > 0)
     print(f"Wrote {total_rows:,} termination rows to {OUTPUT_CSV}")
     print(f"From {num_files} agency/FY files")
 
-    status = "blocked" if ip_blocked else "done"
+    if unreadable:
+        print(f"Could not read {len(unreadable)} checkpoint file(s): {', '.join(unreadable)}")
+    problem = bool(failed or unreadable)
+    status = "blocked" if ip_blocked else ("incomplete" if problem else "done")
     Path("data/scan_status.txt").write_text(status)
 
     if ip_blocked:
         print(f"\nIP blocked -- re-run to continue. Progress saved.")
+    elif problem:
+        listing = ", ".join(f"FY{fy}/{code}" for fy, code in failed) or "none"
+        print(f"\nIncomplete. Downloads that did not finish: {listing}")
     else:
         print("\nDone!")
 
@@ -310,7 +341,9 @@ def main() -> None:
         lines = [f"## This run: {len(run_results)} agency/FY file(s) downloaded\n"]
         lines.append(f"**Total rows scanned:** {total_scanned:,}  ")
         lines.append(f"**Termination rows kept:** {total_kept:,}  ")
-        lines.append(f"**Status:** {'IP blocked -- chaining next run' if ip_blocked else 'Complete'}\n")
+        state = ('IP blocked -- chaining next run' if ip_blocked
+                 else f'INCOMPLETE -- {len(failed)} failed' if problem else 'Complete')
+        lines.append(f"**Status:** {state}\n")
         lines.append("| FY | Agency | Rows scanned | Terminations kept |")
         lines.append("|----|--------|--------------|-------------------|")
         for fy, code, name, scanned, kept in run_results:
@@ -318,6 +351,11 @@ def main() -> None:
         lines.append("")
         with open(args.summary_file, "a") as f:
             f.write("\n".join(lines) + "\n")
+
+    if problem and not ip_blocked:
+        # Red run, so the build and deploy are skipped. Finished files are
+        # kept and uploaded to R2; the next run retries only the failed ones.
+        sys.exit(1)
 
 
 if __name__ == "__main__":

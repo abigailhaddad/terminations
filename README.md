@@ -1,6 +1,8 @@
 # Federal Contract Terminations
 
 **Live site:** https://terminations.abigailhaddad.com
+**Dataset:** https://huggingface.co/datasets/abigailhaddad/contract-terminations (once first published; see HANDOFF.md)
+**Taking this over?** Read [HANDOFF.md](HANDOFF.md).
 
 Every federal contract termination modification since FY2025 — with the reason
 (Default, Convenience, or Cause), the deobligated amount, the agency that ended
@@ -52,10 +54,16 @@ pip install -r requirements.txt
 python3 fetch_awards.py              # downloads bulk archives, filters to terminations
 python3 build_dashboard.py           # builds the dashboard JSON files
 python3 run_checks.py                # regression checks on the built site
+python3 publish_hf.py                # dry run: builds the Hugging Face table and checks it
 cd web && python3 -m http.server     # view locally at http://localhost:8000
 ```
 
-Fiscal years and termination codes are in `config.yaml`.
+Fiscal years, termination codes and the names that belong to the current owner are in
+`config.yaml`. Tests: `pip install -r requirements-test.txt && python3 -m pytest`.
+
+## License
+
+Code: MIT, see `LICENSE`. The data is US government work in the public domain.
 
 ## Credits
 
