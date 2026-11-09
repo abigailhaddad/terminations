@@ -232,6 +232,10 @@ def main() -> None:
             rows_scanned = 0
             rows_kept = 0
             cp = checkpoint_path(fy, code)
+            # Written under a temp name and renamed only when the scan finishes,
+            # so a cancel, timeout or kill mid-write can never leave a partial
+            # FY*.csv that is_done() counts as complete and r2_sync uploads.
+            tmp_cp = cp.with_name(cp.name + ".tmp")
 
             try:
                 with zipfile.ZipFile(zip_path) as zf:
@@ -241,7 +245,7 @@ def main() -> None:
                         cp.touch()
                         continue
 
-                    with open(cp, "w", newline="", encoding="utf-8") as out_f:
+                    with open(tmp_cp, "w", newline="", encoding="utf-8") as out_f:
                         writer = None  # initialized from first CSV's header
 
                         for csv_name in csv_names:
@@ -262,13 +266,21 @@ def main() -> None:
                                     writer.writerow(row)
                                     rows_kept += 1
 
+                    os.replace(tmp_cp, cp)
+
             except Exception as exc:
                 print(f"\n    ERROR: {exc}")
-                if cp.exists():
-                    cp.unlink()
+                if tmp_cp.exists():
+                    tmp_cp.unlink()
                 os.unlink(zip_path)
                 failed.append((fy, code))
                 continue
+            except BaseException:
+                # KeyboardInterrupt / SystemExit (a cancelled run): drop the partial file
+                if tmp_cp.exists():
+                    tmp_cp.unlink()
+                os.unlink(zip_path)
+                raise
 
             os.unlink(zip_path)
             total_kept += rows_kept

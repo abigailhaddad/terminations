@@ -98,3 +98,43 @@ def test_no_terminations_anywhere_is_an_error(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         fa.main()
     assert "No terminations" in str(exc.value)
+
+
+def _zip_with_rows(path, n):
+    import zipfile
+    from helpers import row
+    lines = ["action_type_code,id"] + [f"F,{i}" for i in range(n)]
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("c.csv", "\n".join(lines) + "\n")
+
+
+def test_an_interrupted_scan_leaves_no_checkpoint_behind(sandbox, monkeypatch):
+    """A cancel/kill mid-write must not leave a partial FY*.csv: is_done() would
+    count it as finished and the always() R2 upload would keep it."""
+    zp = sandbox / "a.zip"
+    _zip_with_rows(zp, 10)
+    monkeypatch.setattr(fa, "download_zip", lambda url: str(zp))
+    calls = {"n": 0}
+
+    def boom(row):
+        calls["n"] += 1
+        if calls["n"] == 5:
+            raise KeyboardInterrupt
+        return True
+
+    monkeypatch.setattr(fa, "is_termination_row", boom)
+    with pytest.raises(KeyboardInterrupt):
+        fa.main()
+    ckpt = sandbox / "data" / "bulk_checkpoints"
+    assert not fa.is_done(2026, "036")
+    assert not list(ckpt.glob("FY2026_036*"))
+
+
+def test_a_finished_scan_leaves_the_checkpoint_and_no_temp_file(sandbox, monkeypatch):
+    zp = sandbox / "a.zip"
+    _zip_with_rows(zp, 3)
+    monkeypatch.setattr(fa, "download_zip", lambda url: str(zp))
+    fa.main()
+    ckpt = sandbox / "data" / "bulk_checkpoints"
+    assert len((ckpt / "FY2026_036.csv").read_text().splitlines()) == 4
+    assert not list(ckpt.glob("*.tmp"))
