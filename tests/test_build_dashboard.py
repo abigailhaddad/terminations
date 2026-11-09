@@ -63,3 +63,11 @@ def test_summary_counts_rows_and_contracts(tmp_path, monkeypatch):
     recs = bd.build_contracts_json(_records(tmp_path, monkeypatch, [row(1, key=k), row(2, key=k, mod="P00002"), row(3)]))
     s = bd.build_summary(recs)
     assert (s["total_terminations"], s["unique_contracts"]) == (3, 2)
+
+
+def test_zero_total_obligated_stays_zero_not_null(tmp_path, monkeypatch):
+    # A fully de-obligated contract has total_dollars_obligated == 0; it must not turn into null ("--").
+    recs = _records(tmp_path, monkeypatch, [row(1, total_dollars_obligated="0"), row(2, total_dollars_obligated="")])
+    out = bd.build_contracts_json(recs)
+    by_key = {r["piid"]: r["total_obligated"] for r in out}
+    assert by_key == {"ABC001": 0, "ABC002": None}
